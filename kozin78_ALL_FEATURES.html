@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#10283b">
   <meta name="description" content="משחק הריצה של הדר וקוזין ברחבי מודיעין">
-  <title>המרדף של קוזין: דיאטת המודעין</title>
+  <title>המרדף של קוזין: אנימציות קרב</title>
   <style>
 /* 1. Page and mobile interaction */
 :root { --ink:#091c2a; --gold:#ffdf65; --cream:#fff1cf; --blue:#0674a7; }
@@ -502,7 +502,7 @@ class RunnerGame {
   }
   reset() {
     this.profile=DIFFICULTIES[this.difficulty];this.boss=new BuddhaBoss(this.difficulty==='buddha');this.score=0;this.shield=false;this.cleared=0;this.jumpBuffer=0;this.missionDone=false;
-    this.player={x:320,y:0,vy:0,jumps:0,flip:0,flipDuration:.64,stunt:0,landing:0,phase:0,blocked:false,invincible:0,glance:0,recoil:0,attack:'',attackTime:0};
+    this.player={x:320,y:0,vy:0,jumps:0,flip:0,flipDuration:.64,stunt:0,landing:0,phase:0,blocked:false,invincible:0,glance:0,recoil:0,attack:'',attackTime:0,attackDuration:0};
     this.chaser={x:110,energy:100,shape:1,gap:CONFIG.startGap,phase:0,wipe:0};
     this.foods=[];this.obstacles=[];this.particles=[];this.bubbles=[];this.popups=[];
     this.enemies=[];this.projectiles=[];this.woltStarted=false;this.enemyDelay=2;this.attacks={spit:0,punch:0,kick:0};this.glanceClock=random(4,8);
@@ -533,16 +533,21 @@ class RunnerGame {
   act(kind){
     if(this.state!=='playing'||this.attacks[kind]>0)return;
     const p=this.player;
+    // An entire action has its own keyframed pose; don't cut an action in half.
+    if(p.attackTime>0)return;
+    p.attack=kind;
+    p.attackDuration=kind==='spit'?.74:kind==='kick'?.64:.50;
+    p.attackTime=p.attackDuration;
     if(kind==='spit'){
-      this.attacks.spit=40;p.attack='spit';p.attackTime=.5;p.glance=.55;
-      this.projectiles.push({x:p.x-24,y:p.y+135,vx:-1050,life:.7});
-      this.audio.effect('spit');this.burst(p.x-40,p.y+140,'#d9fff1',7);
+      this.attacks.spit=40;p.glance=.73;
+      // Droplet launches AFTER the head turns back and the mouth opens.
+      this.projectiles.push({x:p.x-48,y:p.y+145,vx:-920,life:1.0,delay:.28,trail:[]});
+      this.audio.effect('spit');
       return;
     }
-    this.attacks[kind]=kind==='punch'?.34:.43;
-    p.attack=kind;p.attackTime=.29;
+    this.attacks[kind]=kind==='punch'?.52:.68;
     this.audio.effect(kind);
-    this.hitEnemies(kind);
+
   }
   hitEnemies(kind){
     const p=this.player,air=kind==='punch';let hits=0;
@@ -581,7 +586,9 @@ class RunnerGame {
     for(const e of this.enemies){
       e.x-=e.speed*dt;e.phase+=dt*15;
       if(e.destroyed)continue;
-      if(p.attackTime>0&&p.attack!=='spit')this.hitEnemies(p.attack);
+      if(p.attackTime>0&&p.attack!=='spit'&&
+         1-p.attackTime/p.attackDuration>.32&&
+         1-p.attackTime/p.attackDuration<.87)this.hitEnemies(p.attack);
       if(Math.abs(e.x-p.x)<42&&(e.air?Math.abs(e.y-(p.y+100))<85:p.y<83)){
         e.destroyed=true;
         this.burst(e.x,e.y+35,'#68e7ee',13);
@@ -596,7 +603,16 @@ class RunnerGame {
   }
   updateSpit(dt){
     for(const droplet of this.projectiles){
-      droplet.x+=droplet.vx*dt;droplet.life-=dt;
+      if(droplet.delay>0){
+        droplet.delay-=dt;droplet.x=this.player.x-48;
+        droplet.y=this.player.y+145;
+        continue;
+      }
+      droplet.trail??=[];
+      droplet.trail.unshift({x:droplet.x,y:droplet.y});
+      if(droplet.trail.length>7)droplet.trail.pop();
+      droplet.x+=droplet.vx*dt;droplet.y+=Math.sin(this.time*17)*dt*16;
+      droplet.life-=dt;
       const k=this.chaser;
       if(Math.abs(droplet.x-k.x)<53&&Math.abs(droplet.y-125)<115){
         droplet.life=0;k.wipe=1.55;this.boss.wiped=1.55;
@@ -882,6 +898,120 @@ class GameRenderer {
     c.save();c.globalAlpha*=alpha;c.translate(x,feet);if (flip)c.scale(-1,1);
     c.imageSmoothingEnabled=false;c.drawImage(img,-width/2,-height,width,height);c.restore();
   }
+  // Draw genuine body poses rather than the old glowing line over a running frame.
+  // The kick uses the actual athletic stunt artwork. Punch and spit use articulated
+  // body/head motion; the fist comes from the original photographic sprite.
+  combatPose(p,x,y,height){
+    const c=this.ctx,progress=clamp(1-p.attackTime/p.attackDuration,0,1);
+    const ease=q=>q*q*(3-2*q),pulse=q=>Math.sin(Math.PI*clamp(q,0,1));
+    const base=this.assets.frames[0];
+    if(!base){this.sprite(0,0,x,y,height);return;}
+    const w=base.width*height/base.height;
+    if(p.attack==='kick'){
+      // 0-20%: chamber; 20-72%: shoe visibly thrust forward; 72-100% recover.
+      const intensity=progress<.24?ease(progress/.24):progress<.68?1:ease((1-progress)/.32);
+      const pose=this.assets.stuntFrames?.[0];
+      if(pose){
+        const size=height/this.assets.stuntScale;
+        const pw=pose.width*size,ph=pose.height*size;
+        const lean= -.09*intensity;
+        c.save();c.translate(x+intensity*17,y-3*intensity);c.rotate(lean);
+        c.imageSmoothingEnabled=true;
+        c.drawImage(pose,-pw/2,-ph,pw,ph);
+        c.restore();
+        if(intensity>.82 && progress>.28 && progress<.72){
+          // A short-lived sneaker trail suggests the direction without duplicating the body.
+          c.save();c.globalAlpha=.18*Math.max(0,1-Math.abs(progress-.5)*2);
+          const shoe={sx:318,sy:257,sw:165,sh:203};
+          c.drawImage(pose,shoe.sx,shoe.sy,shoe.sw,shoe.sh,
+            x+pw*.17+18,y-height*.45,shoe.sw*size,shoe.sh*size);
+          c.restore();
+        }
+      }else this.sprite(0,0,x,y,height);
+      if(progress>.42&&progress<.64){
+        const tx=x+height*.54+16,ty=y-height*.29;
+        for(let i=0;i<5;i++){
+          const a=(i-2)*.66;this.ellipse(tx+Math.cos(a)*15,ty+Math.sin(a)*17,3.7,3.7,'#ffda61');
+        }
+      }
+      return;
+    }
+    if(p.attack==='punch'){
+      // First pull the shoulder back, then push body-weight through the fist.
+      const thrust=progress<.18?0:progress<.52?ease((progress-.18)/.34):progress<.78?1:ease((1-progress)/.22);
+      const windup=progress<.18?ease(progress/.18):0;
+      const ratio=height/base.height;
+      c.save();c.translate(x-w/2+thrust*7-windup*10,y-height-3*pulse(progress));
+      c.rotate(thrust*.038-windup*.055);c.scale(ratio,ratio);
+      c.drawImage(base,0,0);
+      // Same material palette as the source artwork, shaded arm with elbow,
+      // black T-shirt sleeve and a true moving fist, not a detached impact line.
+      const sx=155,sy=77,ex=177+thrust*16,ey=92-thrust*15;
+      const fx=199+thrust*67,fy=68+thrust*4;
+      c.lineCap='round';c.lineJoin='round';
+      const seg=(x1,y1,x2,y2,width,col)=>{
+        c.strokeStyle='#252127';c.lineWidth=width+4;c.beginPath();c.moveTo(x1,y1);c.lineTo(x2,y2);c.stroke();
+        c.strokeStyle=col;c.lineWidth=width;c.beginPath();c.moveTo(x1,y1);c.lineTo(x2,y2);c.stroke();
+      };
+      // At rest the arm is the original image. The moving limb is drawn on top
+      // of it so the fist visibly travels much farther than a normal running pose.
+      if(thrust>.015){
+        seg(sx,sy,ex,ey,23,'#161a1e');
+        seg(ex,ey,fx-12,fy+3,15,'#da9068');
+        seg(ex+4,ey-3,fx-11,fy-1,7,'#f0b084');
+        // Use the athlete's actual knuckles from the running artwork.
+        c.save();c.translate(fx-18,fy-25);c.rotate(-thrust*.1);
+        c.drawImage(base,182,53,37,37,0,0,44,44);c.restore();
+      }
+      c.restore();
+      if(thrust>.85&&progress<.79){
+        const ix=x-w/2+ratio*(199+thrust*67)+7,iy=y-height+ratio*(68+thrust*4);
+        c.save();c.globalAlpha=.8*Math.sin(Math.PI*clamp((progress-.43)/.37,0,1));
+        for(let i=0;i<6;i++){
+          const a=(i-3)*.63;
+          this.ellipse(ix+Math.cos(a)*15,iy+Math.sin(a)*17,3,3,'#f8e5a4');
+        }
+        c.restore();
+      }
+      return;
+    }
+    // Spit: turn the actual head backward, never draw a second head on the body.
+    const turn=progress<.20?ease(progress/.20):progress<.72?1:ease((1-progress)/.28);
+    const bend=pulse(progress)*.055;
+    if(!this._spitBody){
+      // Cache the real sprite with just the original head cut away. Canvas erasure
+      // stays inside this off-screen sprite, never punches a hole in the scenery.
+      const cv=document.createElement('canvas');cv.width=base.width;cv.height=base.height;
+      const bc=cv.getContext('2d');bc.drawImage(base,0,0);
+      bc.globalCompositeOperation='destination-out';bc.beginPath();
+      [[128,0],[202,0],[203,43],[190,56],[170,62],[140,56],[125,26]].forEach(([a,b],i)=>i?bc.lineTo(a,b):bc.moveTo(a,b));
+      bc.closePath();bc.fill();this._spitBody=cv;
+    }
+    c.save();c.translate(x-13*turn,y);
+    c.rotate(-bend);c.translate(0,-height/2);
+    // Normal torso and legs remain fully visible during the neck turn.
+    c.globalAlpha=1-turn;c.drawImage(base,-w/2,-height/2,w,height);
+    if(turn>0){
+      c.globalAlpha=turn;c.drawImage(this._spitBody,-w/2,-height/2,w,height);
+      c.save();
+      // A single mirrored profile from the athlete's existing photographic art.
+      c.translate(-w/2+(height/base.height)*205,-height/2);
+      c.scale(-1,1);
+      const ratio=height/base.height;
+      c.drawImage(base,121,0,85,64,0,0,85*ratio,64*ratio);
+      c.restore();
+    }
+    c.globalAlpha=1;c.restore();
+    // A visible spray starts from the mouth and moves toward Kozin.
+    if(progress>.37&&progress<.67){
+      const q=clamp((progress-.37)/.30,0,1);
+      const faceX=x-12,faceY=y-height*.79;
+      for(let i=0;i<6;i++){
+        const dx=faceX-9-q*(12+i*7),dy=faceY+Math.sin(q*9+i)*5;
+        this.ellipse(dx,dy,Math.max(2,8-i),Math.max(1.4,4-i*.35),'#c4ffed');
+      }
+    }
+  }
   character(game,isChaser) {
     const p=game.player,k=game.chaser,entity=isChaser?k:p;
     const x=entity.x-this.camera,y=this.ground-(isChaser?0:p.y);
@@ -917,6 +1047,8 @@ class GameRenderer {
       if (moving&&k.shape>.05) for (let i=0;i<3;i++) {
         let drop=(this.tick*1.8+i*.33)%1;this.rect(x-35-drop*20,y-160+drop*40,3,6,'#70d7f6');
       }
+    } else if(p.attackTime>0&&p.attack&&game.state==='playing'){
+      this.combatPose(p,x,y,height);
     } else if(game.boss.active==='voice'&&this.assets.reactionFrames[0]){
       const img=this.assets.reactionFrames[0],w=img.width*height/img.height;c.drawImage(img,x-w/2,y-height,w,height);
     } else if(game.boss.active==='milk'&&p.y===0&&this.assets.reactionFrames[1]){
@@ -930,15 +1062,7 @@ class GameRenderer {
       // Shared artwork scale keeps tucked limbs compact instead of stretching them.
       c.drawImage(img,x-w/2,pose===3?y-h:y-height/2-h/2,w,h);
     } else this.sprite(0,frame,x,y,height);
-    if(!isChaser&&p.attackTime>0){
-      const t=1-p.attackTime/.5,reach=p.attack==='spit'?-60:p.attack==='punch'?102:116;
-      c.strokeStyle=p.attack==='spit'?'#d1ffee':'#fff0a4';c.lineWidth=p.attack==='spit'?4:7;
-      c.beginPath();c.moveTo(x+Math.sign(reach)*18,y-height*.62);
-      c.quadraticCurveTo(x+reach*.65,y-height*(p.attack==='kick'?.28:.75),x+reach,y-height*(p.attack==='kick'?.25:.64));c.stroke();
-      if(p.attack==='kick')this.text('בעיטה!',x+80,y-height*.48,13,'#fff09c',true);
-      if(p.attack==='punch')this.text('בום!',x+93,y-height*.83,13,'#fff09c',true);
-    }
-    if(!isChaser&&p.glance>0){
+    if(!isChaser&&p.glance>0&&p.attackTime<=0){
       // Mirror just the head and shoulders for a frightened backward glance,
       // leaving the running legs facing forward. Spitting uses the same turn.
       const img=this.assets.frames[frame];
@@ -1035,7 +1159,20 @@ class GameRenderer {
   }
   projectile(droplet){
     const x=droplet.x-this.camera,y=this.ground-droplet.y;
-    this.ellipse(x,y,13,5,'#d2fff3');this.ellipse(x-19,y+5,6,3,'#9ff6df');
+    if(droplet.delay>0)return;
+    const c=this.ctx;
+    c.save();
+    for(let i=(droplet.trail||[]).length-1;i>=0;i--){
+      const point=droplet.trail[i],v=1-i/Math.max(1,droplet.trail.length);
+      c.globalAlpha=.2+v*.65;
+      this.ellipse(point.x-this.camera,this.ground-point.y,2+v*5,1.5+v*3,'#b9ffe9');
+    }
+    c.globalAlpha=1;
+    // Viscous, animated saliva: an opaque head with a tapered tail and drops.
+    this.ellipse(x,y,15,7,'#1e7760');this.ellipse(x-2,y-1,12,5,'#ddfff5');
+    this.ellipse(x+17,y+2,5,3,'#b9fff3');
+    this.ellipse(x+30,y-3,2.8,2.8,'#9cfbd5');
+    c.restore();
   }
   bubble(game,bubble) {
     const c=this.ctx,p=bubble.who==='luzo'?game.player:game.chaser;
