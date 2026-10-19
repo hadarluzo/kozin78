@@ -9,7 +9,7 @@
 // Direct visits to the old multiplayer link begin at the original lobby.
 // Only an explicit Online button click or a six-digit room invitation opens online.
 (()=>{const p=new URLSearchParams(location.search);
- if(p.get('enter')!=='1' && !/^\\d{6}$/.test(p.get('room')||'')) location.replace(new URL('./index.html',location.href).href);
+ if(p.get('enter')!=='1' && !/^[0-9]{6}$/.test(p.get('room')||'')) location.replace(new URL('./index.html',location.href).href);
 })();
 </script>
 <style>
