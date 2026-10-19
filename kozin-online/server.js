@@ -168,7 +168,7 @@ async function getArt(group,id){
 
 const httpServer=http.createServer((req,res)=>{
  if(req.url?.startsWith('/assets/')){
-  const part=/^\/assets\/([A-Z_]+)\/([a-z0-9_]+)$/.exec(req.url.split('?')[0]);
+  const part=/^\/assets\/([A-Z0-9_]+)\/([a-z0-9_]+)$/.exec(req.url.split('?')[0]);
   if(!part){res.writeHead(404);res.end('Not found');return;}
   getArt(part[1],part[2]).then(asset=>{
    if(!asset){res.writeHead(404,{'Cache-Control':'no-store'});res.end('Image not found');return;}
