@@ -1,14 +1,47 @@
-<!doctype html>
-<html lang="he" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover"><meta name="theme-color" content="#101d2b"><title>המרדף של קוזין | בחירת מצב משחק</title>
-<style>
-*{box-sizing:border-box}html,body{margin:0;min-height:100%;font-family:Arial,Helvetica,sans-serif;color:#f5e9d2;background:#0c1724}body{min-height:100svh;display:grid;place-items:center;background:radial-gradient(ellipse at 50% -20%,#47604a 0%,#16273a 53%,#0a111e 100%);padding:20px}
-main{width:min(520px,96vw);border:1px solid #c9a76d75;background:#0b1928e8;border-radius:22px;padding:clamp(18px,5vw,35px);box-shadow:0 20px 70px #020609a0;text-align:center}
-.kicker{font-size:12px;letter-spacing:2px;color:#ccb57f}h1{font-size:clamp(26px,7vw,42px);margin:12px 0;color:#f2cb7f}p{line-height:1.65;color:#d7dde2;margin:8px 0 20px}
-.options{display:grid;gap:13px}a.choice{display:block;text-decoration:none;text-align:right;padding:19px 18px;border:1px solid #d2a85c;border-radius:14px;background:linear-gradient(135deg,#33495b,#1a2c40);color:#fff;transition:transform .15s,background .15s;touch-action:manipulation}
-a.choice:active{transform:scale(.98)}a.choice strong{display:block;font-size:21px;color:#ffe3a2;margin-bottom:6px}a.choice span{display:block;font-size:13px;line-height:1.5;color:#dae0e7}
-a.choice.online{background:linear-gradient(135deg,#193b51,#142633);border-color:#5db9d8}
-small{display:block;color:#b6c3c9;line-height:1.6;margin-top:20px;font-size:12px}
-</style></head>
-<body><main><div class="kicker">KOZIN'S DIET CHASE</div><h1>המרדף של קוזין</h1><p>בחר מצב משחק</p>
-<div class="options"><a class="choice" href="/index.html"><strong>🎮 מצב רגיל</strong><span>המשחק המקורי, הדמויות, החנויות וההתקדמות הקיימת שלך</span></a><a class="choice online" href="/online.html"><strong>🌐 מצב אונליין</strong><span>שחק עם חבר בחדר פרטי, במרדף משותף עם מצלמה נפרדת לכל שחקן</span></a></div>
-<small>מצב רגיל לא מתחבר לשרת האונליין. מצב אונליין הוא גרסת בטא נפרדת ואינו משנה שמירות או רכישות של המשחק הרגיל.</small></main></body></html>
+<!doctype html><html lang="he" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"><title>המרדף של קוזין</title><style>html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#081524}iframe{position:fixed;inset:0;width:100%;height:100%;border:0;display:block}</style></head><body><iframe id="game-frame" src="/index.html" title="המרדף של קוזין" allow="autoplay;fullscreen" allowfullscreen></iframe>
+<script>
+(function(){
+'use strict';
+const frame=document.getElementById('game-frame');
+let mode='regular',lastDoc=null,observer=null,scheduled=false;
+const styles=[
+'#kozin-mode-picker{display:flex;flex-direction:column;gap:7px;width:100%;margin:0 0 12px;direction:rtl;box-sizing:border-box}',
+'#kozin-mode-picker .km-title{text-align:right;font-weight:800;color:#f4d89e;font-size:clamp(12px,1.3vw,16px);text-shadow:0 2px 7px #000}',
+'#kozin-mode-picker .km-choices{display:grid;grid-template-columns:1fr 1fr;gap:9px}',
+'#kozin-mode-picker .km-option{appearance:none;display:flex;align-items:center;justify-content:center;gap:6px;min-height:41px;padding:8px 11px;border:2px solid #9a855d;border-radius:12px;background:#14243fdc;color:#f3deb9;font:bold clamp(12px,1.3vw,16px) Arial,sans-serif;cursor:pointer;box-shadow:0 4px 14px #060b1570;touch-action:manipulation}',
+'#kozin-mode-picker .km-option[aria-pressed="true"]{background:linear-gradient(130deg,#ffe5a2,#dca544);border-color:#fff0b9;color:#202537;box-shadow:0 0 13px #f8c75a8a}',
+'#kozin-mode-picker .km-option:focus-visible{outline:3px solid #7fdcff;outline-offset:2px}',
+'@media(max-height:500px){#kozin-mode-picker{gap:3px;margin:0 0 5px}#kozin-mode-picker .km-option{min-height:31px;padding:4px 7px}}'
+].join('\n');
+function addPicker(doc){
+ const start=doc.getElementById('lobbyStart');
+ if(!start||!start.isConnected||doc.getElementById('kozin-mode-picker'))return;
+ if(!doc.getElementById('kozin-mode-css')){const style=doc.createElement('style');style.id='kozin-mode-css';style.textContent=styles;doc.head.appendChild(style);}
+ const wrapper=doc.createElement('div');wrapper.id='kozin-mode-picker';wrapper.setAttribute('aria-label','בחירת מצב משחק');
+ const title=doc.createElement('span');title.className='km-title';title.textContent='בחר מצב משחק';
+ const choices=doc.createElement('div');choices.className='km-choices';
+ for(const entry of [['regular','🎮 רגיל'],['online','🌐 אונליין']]){
+  const b=doc.createElement('button');b.type='button';b.className='km-option';b.dataset.mode=entry[0];b.textContent=entry[1];b.setAttribute('aria-pressed',String(mode===entry[0]));
+  b.addEventListener('click',event=>{event.preventDefault();event.stopPropagation();mode=entry[0];for(const el of wrapper.querySelectorAll('.km-option'))el.setAttribute('aria-pressed',String(el.dataset.mode===mode));});
+  choices.appendChild(b);
+ }
+ wrapper.append(title,choices);start.insertAdjacentElement('beforebegin',wrapper);
+}
+function attach(doc){
+ if(doc!==frame.contentDocument)return;
+ doc.addEventListener('click',event=>{
+  if(mode!=='online'||!event.target?.closest?.('#lobbyStart'))return;
+  event.preventDefault();event.stopImmediatePropagation();event.stopPropagation();
+  frame.contentWindow.location.assign('/online.html');
+ },true);
+ const schedule=()=>{if(scheduled)return;scheduled=true;frame.contentWindow.requestAnimationFrame(()=>{scheduled=false;if(lastDoc===doc&&doc.body?.classList.contains('home'))addPicker(doc);});};
+ observer=new MutationObserver(schedule);observer.observe(doc.documentElement,{childList:true,subtree:true});schedule();
+}
+function onFrameLoad(){
+ let doc;try{doc=frame.contentDocument;if(!doc?.documentElement||doc===lastDoc)return;}catch{return;}
+ observer?.disconnect();lastDoc=doc;mode='regular';
+ if(doc.readyState==='loading')doc.addEventListener('DOMContentLoaded',()=>attach(doc),{once:true});else attach(doc);
+}
+frame.addEventListener('load',onFrameLoad);onFrameLoad();
+})();
+</script></body></html>
