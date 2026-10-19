@@ -29,4 +29,14 @@ for(const hero of ['michael','moreno']){const w=new FullWorld(profiles(hero),'ha
  for(let i=0;i<350&&!w.outcome;i++)w.step();
  assert.equal(w.outcome?.reason,'caught','Kozin must resume pursuit after grace period');
 }
+{
+ const w=new FullWorld(profiles('luzo','tzippy'),'normal',7007);
+ w.input('a',{run:true});
+ w.input('b',{run:false});
+ for(let i=0;i<390;i++)w.step();
+ assert.equal(w.outcome,null,'slower teammate must not be caught suddenly just after grace');
+ const previous=w.chaser.x;
+ w.step();
+ assert(w.chaser.x-previous<3,'chaser speed must follow the trailing runner rather than the leading runner');
+}
 assert.equal(CATALOG.gear.length,13);console.log('PASS full engine: 8 heroes, 13 cosmetics, freeze, carry, taxi, shared food, Buddha, independent runners');
