@@ -18,6 +18,8 @@
 #hud{position:absolute;top:env(safe-area-inset-top,0px);right:0;left:0;z-index:5;display:none;align-items:center;justify-content:space-between;gap:8px;padding:8px 11px;background:#06141fd4;border-bottom:1px solid #e2b87260;color:#fff5dc;font-size:clamp(11px,2.2vw,15px);pointer-events:none}#hud b{font-size:1.1em}#hud .roomMark{color:#ffe3a0}#hud .sub{color:#a8d3df}#touchControls{position:absolute;bottom:max(12px,env(safe-area-inset-bottom));left:10px;right:10px;z-index:8;display:none;align-items:end;justify-content:space-between;gap:16px;pointer-events:none;direction:ltr}#touchControls button{pointer-events:auto;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;touch-action:none;border:2px solid #ffe1a5;background:linear-gradient(#eac16d,#b98740);color:#17232d;border-radius:16px;min-width:72px;min-height:65px;padding:7px 10px;font-weight:900;font-size:17px;box-shadow:0 5px 12px #0008}#touchControls button:active{transform:translateY(2px);background:#fbe4a1}#touchControls .run{width:min(26vw,164px);height:96px;font-size:22px}#attack{display:flex;gap:6px;flex-wrap:wrap;justify-content:end;max-width:58vw;direction:rtl}#attack button{font-size:15px;min-height:61px;min-width:65px}#attack button:nth-child(1){background:#8fe1da}#touchControls button em{display:block;font-size:10px;opacity:.8;font-style:normal}#resultView{position:absolute;inset:0;z-index:18;display:none;align-items:center;justify-content:center;background:#061521ce;backdrop-filter:blur(7px);padding:20px;direction:rtl}
 #resultPanel{width:min(460px,96vw);background:linear-gradient(145deg,#172e3f,#091c2a);border:2px solid #e6ba70;box-shadow:0 22px 65px #000b;border-radius:24px;padding:29px 24px;text-align:center;color:#fff2cd}
 #resultTitle{margin:6px 0 12px;font-size:clamp(40px,8vw,64px);color:#ffda85}#resultSummary{font-size:18px;line-height:1.65;min-height:55px}#resultDistance{color:#9ddae4;font-size:15px;margin:10px 0 21px}#resultActions{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}#resultActions button{flex:1;min-width:130px}
+.hero-picker{display:flex;width:100%;align-items:center;gap:12px;border:1px solid #d8b16f;background:#1b3543;color:#ffe3ac;text-align:right;border-radius:12px;min-height:74px;padding:5px 9px;font-weight:800}#chosenHeroPortrait{width:62px;height:62px;object-fit:contain;flex-shrink:0;background:#263b4b;border-radius:10px}#chosenHeroName{flex:1}.chevron{font-size:25px}
+.hero-modal[hidden]{display:none}.hero-modal{position:fixed;inset:0;z-index:50;display:flex;justify-content:center;align-items:center;background:#05131dee;backdrop-filter:blur(9px);padding:18px}.hero-modal-panel{width:min(700px,96vw);max-height:92dvh;overflow:auto;border-radius:25px;border:2px solid #e2bb79;background:linear-gradient(145deg,#172d3e,#0b1b2a);box-shadow:0 25px 80px #000e;padding:20px}.hero-top{display:flex;align-items:center;justify-content:space-between}.hero-top h2{color:#ffe0a1;margin:0;font-size:25px}.hero-close{background:#294455;color:#fff3d7;border-radius:12px;width:46px;height:46px;font-size:24px}.hero-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(118px,1fr));gap:12px;margin-top:20px}.hero-card{background:#1d3949;border:2px solid #49677a;border-radius:16px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;padding:12px 8px;color:#fff5dd;font-weight:800}.hero-card[aria-pressed="true"]{border-color:#f9cb7e;background:#334556;box-shadow:0 0 0 2px #f9cb7e55}.hero-card canvas{width:95px;height:105px;background:#09202e;border-radius:10px;object-fit:contain}.hero-card small{color:#a9d3df}.hero-card:focus-visible{outline:3px solid #ffe0a1}
 #splash{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;z-index:3;color:#fce6c5;background:#0c1926;pointer-events:none}#startupChip{display:none;position:absolute;z-index:9;top:54px;left:50%;transform:translateX(-50%);padding:7px 14px;border-radius:12px;background:#0b2636e8;color:#ffe1a0;text-align:center;font-size:14px;font-weight:bold;pointer-events:none;white-space:nowrap}#pauseChip{display:none;position:absolute;z-index:9;top:51px;left:50%;transform:translateX(-50%);padding:10px 20px;border-radius:13px;background:#102435ec;color:#ffe09d;text-align:center;font-weight:bold;pointer-events:none}a{color:#ffe1a5}#options{display:none}#backLink{font-size:12px;display:inline-block;margin:12px}
 @media(max-width:700px) and (orientation:portrait){#touchControls .run{height:82px}#attack button{min-height:60px;min-width:54px;font-size:13px;padding:5px}}
 </style>
@@ -25,13 +27,14 @@
 <body>
 <iframe id="original" src="./index.html" title="הגרפיקה המקורית של המרדף" loading="eager"></iframe>
 <div id="splash">טוען את המשחק המקורי…</div>
+<div id="heroModal" class="hero-modal" role="dialog" aria-modal="true" aria-label="בחירת דמות" hidden><section class="hero-modal-panel"><div class="hero-top"><h2>בחירת דמות</h2><button id="closeHeroModal" class="hero-close" aria-label="סגור בחירת דמות">✕</button></div><p class="muted">רק דמויות שנפתחו אצלך במשחק</p><div id="heroGrid" class="hero-grid" role="group" aria-label="הדמויות שלי"></div></section></div>
 <div id="hud"><span><b id="hudName">שחקן</b><span class="sub" id="hudDistance"></span></span><span class="roomMark" id="hudRoom"></span><span><b id="hudEnergy">קוזין 100%</b><span class="sub" id="hudFood"></span></span></div>
 <div id="resultView" role="dialog" aria-label="תוצאות המשחק"><section id="resultPanel"><div id="resultTitle">הפסדתם</div><p id="resultSummary"></p><p id="resultDistance"></p><div id="resultActions"><button class="btn" id="resultAgain">משחק חוזר</button><button class="btn dark" id="resultLeave">חזרה ללובי</button></div></section></div>
 <div id="pauseChip">ממתינים לחיבור מחדש…</div><div id="startupChip">יתרון פתיחה · 6 שניות</div>
 <div id="touchControls"><button class="run" id="runBtn">רוץ<em>החזק</em></button><div id="attack"><button id="powerBtn">כוח<em id="powerClock">מיוחד</em></button><button id="kickBtn">בעיטה</button><button id="punchBtn">אגרוף</button><button id="jumpBtn">קפיצה<em>פעמיים = סלטה</em></button></div></div>
 <div id="veil"><div id="panel">
 <h1>המרדף של קוזין</h1><p>אונליין · שני חברים בורחים יחד מקוזין</p><p class="muted">אותה גרפיקה ומנוע משחק מקוריים. כל אחד רואה את המצלמה שלו.</p>
-<div id="options"><label for="nickname">שם המשתמש במשחק</label><input id="nickname" readonly aria-readonly="true" placeholder="נטען מהחשבון" maxlength="24"><p class="muted" id="accountNote">טוען את פרופיל השחקן...</p><div class="twocol"><div><label for="hero">דמות</label><select id="hero" aria-label="בחר דמות שבבעלותך"></select></div><div><label for="difficulty">רמת קושי</label><select id="difficulty"><option value="easy">קל</option><option value="normal" selected>בינוני</option><option value="hard">קשה</option><option value="impossible">בלתי אפשרי</option></select></div></div>
+<div id="options"><label for="nickname">שם המשתמש במשחק</label><input id="nickname" readonly aria-readonly="true" placeholder="נטען מהחשבון" maxlength="24"><p class="muted" id="accountNote">טוען את פרופיל השחקן...</p><div class="twocol"><div><label for="heroPicker">הדמות שלי</label><select id="hero" hidden aria-hidden="true"></select><button type="button" id="heroPicker" class="hero-picker" aria-haspopup="dialog"><canvas id="chosenHeroPortrait" width="74" height="74"></canvas><span id="chosenHeroName">בחר דמות</span><span class="chevron">⌄</span></button></div><div><label for="difficulty">רמת קושי</label><select id="difficulty"><option value="easy">קל</option><option value="normal" selected>בינוני</option><option value="hard">קשה</option><option value="impossible">בלתי אפשרי</option></select></div></div>
 <div class="actions"><button class="btn" id="createBtn">צור חדר</button><button class="btn dark" id="joinBtn">הצטרף לחדר</button></div><input id="joinCode" maxlength="6" inputmode="numeric" pattern="[0-9]{6}" placeholder="קוד בן 6 ספרות" dir="ltr" autocomplete="off">
 <p class="muted">בגדים וכוחות נלקחים מהמשחק הרגיל. האונליין אינו מעניק או מוציא כסף מהארנק.</p></div>
 <div id="roomSection"><p>קוד החדר שלך</p><div id="roomCode" class="room"></div><button class="btn dark wide" id="shareBtn">העתק קישור להזמנת חבר</button><div id="waitingPlayers"></div><div class="actions"><button class="btn" id="readyBtn">אני מוכן</button><button class="btn dark" id="againBtn" style="display:none">משחק חוזר</button></div><button class="btn ghost wide" id="leaveBtn">יציאה מהחדר</button></div>
@@ -43,6 +46,48 @@ const $=id=>document.getElementById(id), PROTOCOL='kozin-full-3', URL='wss://koz
 const q=new URLSearchParams(location.search);if(/^\d{6}$/.test(q.get('room')||''))$('joinCode').value=q.get('room');
 let frame=null,ws=null,profile=null,room=null,session=null,ready=false,running=false,seq=0,held=false,latest=null,remote=null,reconnectTimer=null,reconnectStart=0,stopped=false,manualLeave=false,appReady=false,renderInstalled=false,lastSent=0,activeRound=null,smoothSelf=null,smoothChaser=null,smoothRemote=null,lastPaintTime=0,lastSnapshotAt=0,visualJump=null,frameCount=0,frameSum=0,frameSampleAt=0;const roomRoster=new Map();const HERO_LABELS={luzo:'הדר',yishai:'ישי',eyal:'אייל',moreno:'מורנו',hashi:'האשי',yona:'יונה',tzippy:'ציפי',michael:'מיכאל'};const heroName=id=>HERO_LABELS[id]||id||'דמות לא ידועה';const rememberRoster=ps=>{for(const p of ps||[]){const old=roomRoster.get(p.id)||{};roomRoster.set(p.id,{...old,...p,gear:{...(old.gear||{}),...(p.gear||{})}})}};const enrichedPlayers=ps=>(ps||[]).map(p=>{const old=roomRoster.get(p.id)||{};return {...old,...p,hero:p.hero||old.hero||'luzo',gear:{...(old.gear||{}),...(p.gear||{})}}});
 
+function drawHeroPortrait(id,canvas){
+ const ctx=canvas.getContext('2d');ctx.clearRect(0,0,canvas.width,canvas.height);
+ const assets=frame?.assets;
+ const image=assets?.heroPortraits?.[id] || assets?.heroFrames?.[id]?.[0] ||
+  (id==='luzo'?assets?.runFrames?.[0]:null);
+ if(image?.width&&image?.height){
+   const ratio=Math.min(canvas.width*.91/image.width,canvas.height*.94/image.height);
+   const w=image.width*ratio,h=image.height*ratio;
+   ctx.drawImage(image,(canvas.width-w)/2,canvas.height-h,w,h);
+ }else{
+   ctx.fillStyle='#284354';ctx.fillRect(0,0,canvas.width,canvas.height);
+   ctx.font='bold 24px Arial';ctx.fillStyle='#f9d49d';ctx.textAlign='center';
+   ctx.fillText((heroName(id)||'?').slice(0,2),canvas.width/2,canvas.height/2);
+ }
+}
+function updateHeroPicker(){
+ const selected=$('hero').value||'luzo';
+ $('chosenHeroName').textContent=heroName(selected);
+ drawHeroPortrait(selected,$('chosenHeroPortrait'));
+}
+function showHeroPicker(){
+ if(!frame)return;
+ syncAccountProfile();
+ const grid=$('heroGrid');grid.replaceChildren();
+ for(const option of $('hero').options){
+   const hero=option.value;
+   const card=document.createElement('button');card.type='button';card.className='hero-card';
+   card.setAttribute('aria-pressed',String($('hero').value===hero));
+   const portrait=document.createElement('canvas');portrait.width=120;portrait.height=132;
+   drawHeroPortrait(hero,portrait);
+   const name=document.createElement('span');name.textContent=heroName(hero);
+   const small=document.createElement('small');small.textContent=$('hero').value===hero?'נבחר':'לבחירה';
+   card.append(portrait,name,small);
+   card.onclick=()=>{$('hero').value=hero;updateHeroPicker();$('heroModal').hidden=true;$('heroPicker').focus()};
+   grid.append(card);
+ }
+ $('heroModal').hidden=false;
+}
+$('heroPicker').onclick=showHeroPicker;
+$('closeHeroModal').onclick=()=>{$('heroModal').hidden=true;$('heroPicker').focus()};
+$('heroModal').addEventListener('pointerdown',e=>{if(e.target===$('heroModal'))$('heroModal').hidden=true});
+addEventListener('keydown',e=>{if(e.code==='Escape'&&!$('heroModal').hidden)$('heroModal').hidden=true});
 function syncAccountProfile(){
  if(!frame)return;
  const wallet=frame.game.wallet;
@@ -59,6 +104,7 @@ function syncAccountProfile(){
  const hasName=accountName&&accountName!=='שחקן חדש'&&accountName!=='שחקן';
  $('nickname').value=hasName?accountName:(wallet.user?'שחקן':'אורח');
  $('accountNote').textContent=wallet.user?'השם והדמויות נטענו מהחשבון שלך.':'משחק מקומי: הדמויות נטענו מהשמירה במכשיר הזה. התחבר בלובי הרגיל כדי להשתמש בהתקדמות החשבון.';
+ updateHeroPicker();
 }
 const announce=s=>$('status').textContent=s;
 const send=m=>{if(ws?.readyState===WebSocket.OPEN)try{ws.send(JSON.stringify(m));return true}catch{}return false};
