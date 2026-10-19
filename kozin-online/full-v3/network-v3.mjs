@@ -5,8 +5,15 @@ export function attachFullOnline(server,{route=true}={}){
  const rooms=new Map(),connections=new Map(),MAX_ROOMS=40,GRACE=60000;
  const allowed=(process.env.ALLOWED_ORIGINS||'').split(',').map(v=>v.trim()).filter(Boolean);
  const wss=new WebSocketServer({noServer:true,maxPayload:4096,perMessageDeflate:false,verifyClient:({origin},done)=>done(!allowed.length||allowed.includes(origin),403,'Origin denied')});
- const send=(ws,m)=>{if(ws?.readyState===WebSocket.OPEN&&ws.bufferedAmount<512000)ws.send(JSON.stringify(m));};
- const emit=(r,m)=>r.players.forEach(p=>send(p.ws,m));
+ // Discard stale world frames rather than buffering half a second of old positions.
+ const send=(ws,m)=>{
+  if(ws?.readyState!==WebSocket.OPEN)return;
+  const encoded=typeof m==='string'?m:JSON.stringify(m);
+  if(encoded.startsWith('{"type":"snapshot"')&&ws.bufferedAmount>65536)return;
+  if(ws.bufferedAmount<512000)ws.send(encoded);
+ };
+ // Shared authoritative state is identical for both clients; encode it once.
+ const emit=(r,m)=>{const data=typeof m==='string'?m:JSON.stringify(m);for(const p of r.players)send(p.ws,data);};
  const state=r=>({type:'room',protocol:PROTOCOL,code:r.code,round:r.round,difficulty:r.difficulty,status:r.status,paused:r.players.some(p=>!p.ws||p.away),players:r.players.map(p=>({id:p.id,name:p.name,hero:p.hero,gear:p.gear,ready:p.ready,connected:!!p.ws,away:p.away}))});
  const safeGear=v=>Object.fromEntries(CATALOG.gear.filter(g=>v?.[g.slot]===g.id).map(g=>[g.slot,g.id]));
  const profile=m=>({name:String(m.name||'שחקן').replace(/[<>\u0000-\u001f]/g,'').trim().slice(0,24)||'שחקן',hero:CATALOG.heroes.includes(m.hero)?m.hero:'luzo',gear:safeGear(m.gear)});
@@ -58,19 +65,21 @@ export function attachFullOnline(server,{route=true}={}){
   });
   ws.on('close',()=>{connections.set(ip,Math.max(0,(connections.get(ip)||1)-1));const r=ws.room,p=ws.player;if(!r||!p||p.ws!==ws)return;p.ws=null;p.ready=false;p.deadline=Date.now()+GRACE;r.world?.input(p.id,{run:false,lift:false});emit(r,state(r));});ws.on('error',()=>{});
  });
+ // Fixed 60 Hz world update, with a bounded catch-up budget after host stalls.
+ const STEP=1/60,MAX_ACC=STEP*3;
  let previous=performance.now(),acc=0;
  const loop=setInterval(()=>{
-  const now=performance.now();acc+=Math.min(.1,(now-previous)/1000);previous=now;
-  while(acc>=1/120){for(const r of rooms.values()){
+  const now=performance.now();acc=Math.min(MAX_ACC,acc+Math.max(0,(now-previous)/1000));previous=now;
+  while(acc>=STEP){for(const r of rooms.values()){
    if(Date.now()-r.created>3600000){closeRoom(r,'החדר פג תוקף');continue;}
    if(r.players.some(p=>(!p.ws||p.away)&&Date.now()>p.deadline)){closeRoom(r,'החיבור לא חודש בתוך דקה. ההתקדמות שכבר התקבלה נשמרה.');continue;}
    if(r.status!=='running'||r.players.length!==2||r.players.some(p=>!p.ws||p.away))continue;
    for(const p of r.players)if(Date.now()-p.lastInput>500)r.world.input(p.id,{run:false,lift:false});
-   try{r.world.step(1/120);if(r.world.tick%6===0||r.world.outcome)emit(r,snap(r));if(r.world.outcome){r.status='finished';emit(r,state(r));}}catch(e){console.error('FULL_WORLD_ERROR',e.stack);closeRoom(r,'שגיאה בשרת. אפשר לפתוח חדר חדש.');}
-  }acc-=1/120;}
+   try{r.world.step(STEP);if(r.world.tick%3===0||r.world.outcome)emit(r,snap(r));if(r.world.outcome){r.status='finished';emit(r,state(r));}}catch(e){console.error('FULL_WORLD_ERROR',e.stack);closeRoom(r,'שגיאה בשרת. אפשר לפתוח חדר חדש.');}
+  }acc-=STEP;}
  },1000/60);loop.unref();
  const heartbeat=setInterval(()=>{for(const ws of wss.clients){if(!ws.alive)ws.terminate();else{ws.alive=false;ws.ping();}}},10000);heartbeat.unref();
  if(route)server.on('upgrade',(req,socket,head)=>{if(req.url?.split('?')[0]==='/full-v3')wss.handleUpgrade(req,socket,head,ws=>wss.emit('connection',ws,req));else socket.destroy();});
- const health=()=>({ok:true,protocol:PROTOCOL,rooms:rooms.size,tickHz:120,snapshotHz:20});
+ const health=()=>({ok:true,protocol:PROTOCOL,rooms:rooms.size,tickHz:60,snapshotHz:20});
  return {wss,rooms,health,close(){clearInterval(loop);clearInterval(heartbeat);for(const r of rooms.values())closeRoom(r,'השרת מופעל מחדש');for(const ws of wss.clients)ws.close(1012,'Server restart');wss.close();}};
 }
