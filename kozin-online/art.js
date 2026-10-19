@@ -28,7 +28,7 @@ async function load(){
  finally{art.loading=false;}
 }
 const runFrames=[[30,26,373,412],[525,34,301,400],[932,26,321,407],[1347,22,406,403],[32,453,416,413],[513,463,346,402],[939,453,351,410],[1359,449,389,411]];
-const chaserFrames=[[0,0,0,0]]; // character atlas fallback when no frame mapping
+const chaserFrames=[[102,7,219,213],[472,6,156,214],[771,6,229,214],[1101,6,198,214],[95,220,215,226],[460,223,170,226],[771,223,246,226],[1108,220,220,228]];
 function player(ctx,p,x,feet,height=92){
  const mode=p.action==='kick'?11:p.action==='punch'?10:p.y>2?9:p.running?Math.floor(p.phase||0)%8:8;
  const outfit=art.costumes[p.hero];
@@ -52,6 +52,11 @@ function player(ctx,p,x,feet,height=92){
  }
  return false;
 }
+function chaserDraw(ctx,x,feet,height,phase){
+ if(!art.chaser)return false;
+ const frame=chaserFrames[(Math.floor(phase||0)%8+8)%8],width=height*frame[2]/frame[3];
+ ctx.drawImage(art.chaser,...frame,x-width/2,feet-height,width,height);return true;
+}
 function backdrop(ctx,index,width,ground){
  const atlas=index<4?art.world.day:art.world.evening;
  if(!atlas)return false;
@@ -62,5 +67,5 @@ function backdrop(ctx,index,width,ground){
  ctx.drawImage(atlas,sx,sy,sw,sh,0,0,width,ground+40);
  return true;
 }
-window.KozinOriginalArt={load,player,backdrop,state:art};
+window.KozinOriginalArt={load,player,backdrop,chaser:chaserDraw,state:art};
 })();
