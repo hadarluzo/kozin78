@@ -19,7 +19,7 @@ export function attachFullOnline(server,{route=true}={}){
  const profile=m=>({name:String(m.name||'שחקן').replace(/[<>\u0000-\u001f]/g,'').trim().slice(0,24)||'שחקן',hero:CATALOG.heroes.includes(m.hero)?m.hero:'luzo',gear:safeGear(m.gear)});
  const snap=r=>({type:'snapshot',code:r.code,round:r.round,serverTime:Date.now(),...r.world.snapshot()});
  function closeRoom(r,reason){emit(r,{type:'closed',reason});rooms.delete(r.code);for(const p of r.players){if(p.ws){p.ws.room=null;p.ws.player=null;}}}
- function start(r){r.world=new FullWorld(r.players,r.difficulty,randomInt(0x7fffffff));r.round=randomBytes(12).toString('hex');r.status='running';r.players.forEach(p=>{p.ready=false;p.lastSeq=-1;p.lastInput=Date.now();});emit(r,{type:'started',round:r.round});emit(r,state(r));emit(r,snap(r));}
+ function start(r){r.world=new FullWorld(r.players,r.difficulty,randomInt(0x7fffffff),{countdown:true});r.round=randomBytes(12).toString('hex');r.status='running';r.players.forEach(p=>{p.ready=false;p.lastSeq=-1;p.lastInput=Date.now();});emit(r,{type:'started',round:r.round});emit(r,state(r));emit(r,snap(r));}
  const joined=(r,p)=>{send(p.ws,{type:'joined',protocol:PROTOCOL,code:r.code,id:p.id,token:p.token,round:r.round});emit(r,state(r));if(r.world)send(p.ws,snap(r));};
  wss.on('connection',(ws,req)=>{
   const ip=req.socket.remoteAddress||'unknown';connections.set(ip,(connections.get(ip)||0)+1);
