@@ -1,8 +1,19 @@
 {
+  "redirects": [
+    {
+      "source": "/index.html",
+      "destination": "/mode.html",
+      "permanent": false
+    }
+  ],
   "rewrites": [
     {
       "source": "/",
       "destination": "/mode.html"
+    },
+    {
+      "source": "/original-game",
+      "destination": "/index.html"
     }
   ]
 }
