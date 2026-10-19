@@ -52,7 +52,7 @@ let combatText='',combatUntil=0;let ws=null,myId='',roomCode='',roomPlayers=[],i
 const params=new URLSearchParams(location.search);
 if(params.has('room'))$('code').value=(params.get('room')||'').replace(/\D/g,'').slice(0,6);
 const HERO_COLORS={luzo:'#222b32',yona:'#91bfff',yishai:'#dcb0db',eyal:'#e9a75a',hashi:'#9ec881',tzippy:'#cc87a3',michael:'#e87c6e',moreno:'#a493f0'};
-try{const profile=JSON.parse(localStorage.getItem('kuzin-local-v2')||'null');if(profile){$('name').value=String(profile.name||'שחקן').slice(0,20);if(Object.hasOwn(HERO_COLORS,profile.selected))$('hero').value=profile.selected;}}catch{}
+try{const profile=JSON.parse(localStorage.getItem('kuzin-local-v2')||'null');if(profile){$('name').value=String(profile.name||'שחקן').slice(0,20);const owned=new Set(['luzo',...(Array.isArray(profile.owned)?profile.owned:[])]);for(const option of $('hero').options){option.disabled=!owned.has(option.value);if(option.disabled)option.textContent+=' 🔒';}if(Object.hasOwn(HERO_COLORS,profile.selected)&&owned.has(profile.selected))$('hero').value=profile.selected;}}catch{}
 
 function setStatus(s){$('status').textContent=s}
 function send(m){if(ws?.readyState===WebSocket.OPEN)ws.send(JSON.stringify(m))}
