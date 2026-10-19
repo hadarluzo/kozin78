@@ -18,4 +18,15 @@ for(const hero of ['michael','moreno']){const w=new FullWorld(profiles(hero),'ha
 {
  const w=new FullWorld(profiles(),'normal',7);w.input('a',{run:true});w.input('b',{run:false});for(let i=0;i<60;i++)w.step();assert(w.games[0].player.x>w.games[1].player.x);assert(w.games[0].player.x-w.chaser.x>200,'no double chaser movement');
 }
+{
+ const w=new FullWorld(profiles('luzo','tzippy'),'normal',2026);
+ const initial=w.snapshot();
+ assert.equal(initial.players[0].hero,'luzo');
+ assert.equal(initial.players[1].hero,'tzippy','other player's selected hero must remain in snapshots');
+ assert.equal(initial.players[1].gear.outfit,'tech','remote wardrobe must remain in snapshots');
+ for(let i=0;i<359;i++){w.step();assert.equal(w.outcome,null,'no immediate Kozin catch during protected online opening');}
+ assert(w.games.every(g=>g.player.x-w.chaser.x>82),'both runners have safe gap at start');
+ for(let i=0;i<350&&!w.outcome;i++)w.step();
+ assert.equal(w.outcome?.reason,'caught','Kozin must resume pursuit after grace period');
+}
 assert.equal(CATALOG.gear.length,13);console.log('PASS full engine: 8 heroes, 13 cosmetics, freeze, carry, taxi, shared food, Buddha, independent runners');
