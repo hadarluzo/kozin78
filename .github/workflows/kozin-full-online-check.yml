@@ -30,3 +30,12 @@ jobs:
             sleep 0.5
           done
           node kozin-online/full-v3/live-test.mjs ws://127.0.0.1:9087/full-v3
+      - name: Check deployed production WebSocket room
+        shell: bash
+        run: |
+          set -eo pipefail
+          for i in $(seq 1 45); do
+            if curl --max-time 8 -fsS https://kozin-online-server.onrender.com/full-v3/health | grep -q '"ok":true'; then break; fi
+            sleep 2
+          done
+          node kozin-online/full-v3/live-test.mjs wss://kozin-online-server.onrender.com/full-v3
