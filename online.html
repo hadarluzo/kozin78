@@ -57,7 +57,7 @@ function onMessage(m){
   if(m.status==='finished'){running=false;roomView();$('readyBtn').style.display='none';$('againBtn').style.display='inline-flex';}
   if(m.status==='running'){$('pauseChip').style.display=m.paused?'block':'none';if(!m.paused)playView();}
  }
- if(m.type==='started'){running=true;held=false;seq=0;latest=null;remote=null;renderInstalled=false;playView();announce('המרדף התחיל!');sendInput(false);}
+ if(m.type==='started'){running=true;held=false;seq=0;latest=null;remote=null;revealGameCanvas();playView();announce('המרדף התחיל!');sendInput(false);}
  if(m.type==='snapshot'){
   if(!session||m.code!==session.code)return;const wasFinished=latest?.outcome;latest=m;
   if(!frame?.game||!appReady)return;
@@ -78,9 +78,15 @@ function patchRenderer(){if(renderInstalled||!frame)return;const r=frame.rendere
  finally{frame.wardrobe.equipped=ownGear;}
  };
 }
+function revealGameCanvas(){const doc=$('original').contentDocument;if(!doc?.body)return;
+ // The original lobby leaves body.home active even after the multiplayer engine starts.
+ // That class applies blur(13px) and brightness(.2) to the entire game canvas.
+ doc.body.classList.remove('home');doc.getElementById('overlay')?.classList.add('hidden');
+ const canvas=doc.getElementById('game');if(canvas){canvas.style.setProperty('filter','none','important');canvas.style.setProperty('transform','none','important');}
+}
 function updateGame(m){const me=m.players.find(p=>p.id===session?.id),other=m.players.find(p=>p.id!==session?.id);if(!me||!frame)return;const g=frame.game;
  if(!g.__onlineStarted){g.difficulty=m.difficulty||'normal';g.start();g.update=()=>{};g.events=[];g.__onlineStarted=true;frame.renderer.reset(g)}
- g.state='playing';g.wallet.selected=me.hero;g.player={...g.player,...me.player};g.power=Object.assign(g.power,me.power||{});
+ revealGameCanvas();g.state='playing';g.wallet.selected=me.hero;g.player={...g.player,...me.player};g.power=Object.assign(g.power,me.power||{});
  g.combat=Object.assign(g.combat,me.combat||{});g.combat.enemies=m.enemies||[];g.chaser={...g.chaser,...m.chaser};g.boss=Object.assign(g.boss,m.boss||{});
  g.obstacles=m.obstacles||[];g.foods=m.foods||[];g.mapIndex=m.mapIndex||0;g.distance=me.distance||0;g.time=m.time||0;
  for(const k of ['score','count','combo','maxCombo','hits','missed','cleared','shield','grace','celebration','particles','popups','bubbles'])if(k in me)g[k]=me[k];
