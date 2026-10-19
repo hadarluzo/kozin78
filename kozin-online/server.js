@@ -1,3 +1,4 @@
+import { attachFullOnline } from './full-v3/network-v3.mjs';
 import http from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { randomBytes, randomInt } from 'node:crypto';
@@ -189,10 +190,13 @@ const httpServer=http.createServer((req,res)=>{
   return;
  }
 
+ if(req.url==='/full-v3/health'){res.writeHead(200,{'Content-Type':'application/json','Access-Control-Allow-Origin':'*','Cache-Control':'no-store'});res.end(JSON.stringify(fullOnline.health()));return;}
  if(req.url==='/health'){res.writeHead(200,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'});res.end(JSON.stringify({ok:true,rooms:rooms.size,version:2}));return;}
  res.writeHead(404,{'Content-Type':'text/plain'});res.end('Not found');
 });
-const wss=new WebSocketServer({server:httpServer,maxPayload:3072,verifyClient:({origin},cb)=>cb(!ALLOWED.length||ALLOWED.includes(origin),403,'Origin denied')});
+const wss=new WebSocketServer({noServer:true,maxPayload:3072,verifyClient:({origin},cb)=>cb(!ALLOWED.length||ALLOWED.includes(origin),403,'Origin denied')});
+const fullOnline=attachFullOnline(httpServer,{route:false});
+httpServer.on('upgrade',(req,socket,head)=>{const target=req.url?.split('?')[0]==='/full-v3'?fullOnline.wss:wss;target.handleUpgrade(req,socket,head,ws=>target.emit('connection',ws,req));});
 wss.on('connection',ws=>{
  let room=null,player=null,windowAt=Date.now(),messageCount=0;
  ws.alive=true;ws.on('pong',()=>ws.alive=true);
@@ -259,3 +263,4 @@ httpServer.listen(PORT,'0.0.0.0',()=>{
   testTimer.unref?.();
  }
 });
+
