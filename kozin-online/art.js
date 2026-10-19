@@ -2,43 +2,40 @@
 (function(){
 'use strict';
 const art={ready:false,loading:false,failed:false,hero:{},costumes:{},world:{},run:null,chaser:null};
-const loadImage=url=>new Promise(resolve=>{const im=new Image();im.onload=()=>resolve(im);im.onerror=()=>resolve(null);im.src=url;});
+const loadImage=url=>new Promise(resolve=>{const im=new Image();im.crossOrigin='anonymous';im.onload=()=>resolve(im);im.onerror=()=>resolve(null);im.src=url;});
+const imageUrl=(group,id)=>'https://kozin-online-server.onrender.com/assets/'+group+'/'+id;
 function extractObj(source,tag){const a=source.indexOf(tag);if(a<0)return {};const start=source.indexOf('{',a+tag.length),end=source.indexOf('};',start);if(end<0)return {};return JSON.parse(source.slice(start,end+1));}
 async function load(players=[]){
  if(art.ready||art.loading||art.failed)return;
  art.loading=true;
  try{
-  const response=await fetch('/original-game',{cache:'force-cache'});
-  if(!response.ok)throw new Error('Original art not found '+response.status);
-  const source=await response.text();
-  const heroes=extractObj(source,'const HERO_ART =');
-  const assets=extractObj(source,'const ASSET_URLS =');
-  const wardrobe=extractObj(source,'const WARDROBE_ART=');
-  const drop2=extractObj(source,'const DROP2_ART=');
-  const extra=extractObj(source,'const EXPANSION_ART');
-  // Only two real characters may be in the room. Loading every original atlas
-  // exhausted memory on older iPhones and slowed starting the match.
+  // All images come from the original game, but only the requested ones are
+  // delivered. The phone never downloads or parses the 47MB game source.
   const targets=players.filter(p=>p&&typeof p.hero==='string').slice(0,2);
   if(!targets.length)targets.push({hero:'luzo',gear:{}});
   const tasks=[
-    loadImage(assets.day).then(img=>art.world.day=img),
-    loadImage(assets.evening).then(img=>art.world.evening=img),
-    loadImage(assets.characters).then(img=>art.chaser=img)
+   loadImage(imageUrl('ASSET_URLS','day')).then(im=>art.world.day=im),
+   loadImage(imageUrl('ASSET_URLS','evening')).then(im=>art.world.evening=im),
+   loadImage(imageUrl('ASSET_URLS','characters')).then(im=>art.chaser=im)
   ];
+  const defaultHeroes=new Set(['yona','eyal','hashi','moreno','yishai']);
   for(const p of targets){
    const id=p.hero;
    art.costumes[id]||={};
-   if(heroes[id])tasks.push(loadImage(heroes[id]).then(img=>art.hero[id]=img));
-   else if(extra[id])tasks.push(loadImage(extra[id]).then(img=>art.hero[id]=img));
-   if(id==='luzo'&&!p.gear?.outfit)tasks.push(loadImage(assets.runv2).then(img=>art.run=img));
+   if(defaultHeroes.has(id))tasks.push(loadImage(imageUrl('HERO_ART',id)).then(im=>art.hero[id]=im));
+   else if(id==='michael'||id==='tzippy')tasks.push(loadImage(imageUrl('EXPANSION_ART',id)).then(im=>art.hero[id]=im));
+   if(id==='luzo'&&!p.gear?.outfit)tasks.push(loadImage(imageUrl('ASSET_URLS','runv2')).then(im=>art.run=im));
    const outfit=p.gear?.outfit;
-   if(['dogs','paisley'].includes(outfit)&&drop2[id])tasks.push(loadImage(drop2[id]).then(img=>art.costumes[id].drop2=img));
-   if(['tech','fahima'].includes(outfit)&&wardrobe[id])tasks.push(loadImage(wardrobe[id]).then(img=>art.costumes[id].wardrobe=img));
-   if(['tech','fahima'].includes(outfit)&&drop2[id+'_'+outfit])tasks.push(loadImage(drop2[id+'_'+outfit]).then(img=>art.costumes[id][outfit]=img));
-   if(['dogs','paisley'].includes(outfit)&&drop2[id+'_'+outfit])tasks.push(loadImage(drop2[id+'_'+outfit]).then(img=>art.costumes[id][outfit]=img));
+   if(['dogs','paisley'].includes(outfit))
+     tasks.push(loadImage(imageUrl('DROP2_ART',id)).then(im=>art.costumes[id].drop2=im));
+   if(['tech','fahima'].includes(outfit)){
+     if(['michael','tzippy'].includes(id))
+       tasks.push(loadImage(imageUrl('DROP2_ART',id+'_'+outfit)).then(im=>art.costumes[id][outfit]=im));
+     else tasks.push(loadImage(imageUrl('WARDROBE_ART',id)).then(im=>art.costumes[id].wardrobe=im));
+   }
   }
   await Promise.all(tasks);
-  if(!art.world.day&&!art.world.evening&&!art.chaser&&!Object.keys(art.hero).length)throw new Error('Original asset maps missing');
+  if(!art.world.day&&!art.world.evening&&!art.chaser&&!Object.values(art.hero).some(Boolean))throw new Error('Original artwork missing');
   art.ready=true;
  }catch(e){art.failed=true;console.warn('Original artwork unavailable; basic graphics remain',e);}
  finally{art.loading=false;}
