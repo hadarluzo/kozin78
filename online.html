@@ -49,7 +49,7 @@ let frame=null,ws=null,profile=null,room=null,session=null,ready=false,running=f
 function drawHeroPortrait(id,canvas){
  const ctx=canvas.getContext('2d');ctx.clearRect(0,0,canvas.width,canvas.height);
  const assets=frame?.assets;
- const image=assets?.heroPortraits?.[id] || assets?.heroFrames?.[id]?.[0] ||
+ const image=(id==='luzo'?assets?.images?.lobby:null) || assets?.heroPortraits?.[id] || assets?.heroFrames?.[id]?.[8] ||
   (id==='luzo'?assets?.runFrames?.[0]:null);
  if(image?.width&&image?.height){
    const ratio=Math.min(canvas.width*.91/image.width,canvas.height*.94/image.height);
