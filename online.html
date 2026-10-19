@@ -15,7 +15,10 @@
 <style>
 *{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;height:100dvh;overflow:hidden;background:#0c1926;color:#fff5db;font-family:Arial,'Noto Sans Hebrew',sans-serif;touch-action:manipulation}button,input,select{font:inherit}button{border:0;cursor:pointer;touch-action:manipulation}button:disabled{opacity:.42;cursor:wait}
 #original{position:absolute;inset:0;width:100%;height:100%;border:0;display:block;pointer-events:none}#veil{position:absolute;inset:0;background:linear-gradient(135deg,#08121bee,#112a3cf0);z-index:20;display:flex;align-items:center;justify-content:center;overflow-y:auto;padding:20px 14px;overscroll-behavior:contain;touch-action:pan-y}#veil.hidden{display:none}#panel{width:min(510px,100%);border:1px solid #bd9456;border-radius:21px;padding:24px;background:#102332f5;box-shadow:0 20px 65px #000b;text-align:center}h1{font-size:clamp(25px,6vw,38px);margin:3px 0 8px;color:#e9bd6b}p{margin:12px 0}small,.muted{color:#aebfcc;line-height:1.55;font-size:13px}input,select{background:#081824;color:#fff5dc;border:1px solid #5b7280;border-radius:10px;padding:12px;width:100%;max-width:100%;outline:none}input:focus,select:focus{border-color:#dfbd79}label{display:block;text-align:right;margin:12px 0 5px;color:#deccb0;font-size:13px}.twocol{display:grid;grid-template-columns:1fr 1fr;gap:9px}.btn{display:inline-flex;align-items:center;justify-content:center;background:#f2be63;color:#1a2430;padding:13px 16px;border-radius:11px;font-weight:900;min-height:44px}.btn.dark{background:#1c4053;color:#f4e5c5;border:1px solid #58798a}.btn.ghost{background:transparent;color:#ffe0a8;border:1px solid #a58a60}.btn.wide{width:100%}.actions{display:flex;gap:10px;margin:14px 0;flex-wrap:wrap}.actions .btn{flex:1}.room{font-size:33px;letter-spacing:7px;direction:ltr;font-weight:900;color:#83e2ec;margin:8px auto}.status{color:#ffd482;min-height:22px;line-height:1.4;font-size:14px;margin-top:8px}#roomSection{display:none}#waitingPlayers{line-height:1.9}
-#hud{position:absolute;top:env(safe-area-inset-top,0px);right:0;left:0;z-index:5;display:none;align-items:center;justify-content:space-between;gap:8px;padding:8px 11px;background:#06141fd4;border-bottom:1px solid #e2b87260;color:#fff5dc;font-size:clamp(11px,2.2vw,15px);pointer-events:none}#hud b{font-size:1.1em}#hud .roomMark{color:#ffe3a0}#hud .sub{color:#a8d3df}#touchControls{position:absolute;bottom:max(12px,env(safe-area-inset-bottom));left:10px;right:10px;z-index:8;display:none;align-items:end;justify-content:space-between;gap:16px;pointer-events:none;direction:ltr}#touchControls button{pointer-events:auto;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;touch-action:none;border:2px solid #ffe1a5;background:linear-gradient(#eac16d,#b98740);color:#17232d;border-radius:16px;min-width:72px;min-height:65px;padding:7px 10px;font-weight:900;font-size:17px;box-shadow:0 5px 12px #0008}#touchControls button:active{transform:translateY(2px);background:#fbe4a1}#touchControls .run{width:min(26vw,164px);height:96px;font-size:22px}#attack{display:flex;gap:6px;flex-wrap:wrap;justify-content:end;max-width:58vw;direction:rtl}#attack button{font-size:15px;min-height:61px;min-width:65px}#attack button:nth-child(1){background:#8fe1da}#touchControls button em{display:block;font-size:10px;opacity:.8;font-style:normal}#splash{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;z-index:3;color:#fce6c5;background:#0c1926;pointer-events:none}#startupChip{display:none;position:absolute;z-index:9;top:54px;left:50%;transform:translateX(-50%);padding:7px 14px;border-radius:12px;background:#0b2636e8;color:#ffe1a0;text-align:center;font-size:14px;font-weight:bold;pointer-events:none;white-space:nowrap}#pauseChip{display:none;position:absolute;z-index:9;top:51px;left:50%;transform:translateX(-50%);padding:10px 20px;border-radius:13px;background:#102435ec;color:#ffe09d;text-align:center;font-weight:bold;pointer-events:none}a{color:#ffe1a5}#options{display:none}#backLink{font-size:12px;display:inline-block;margin:12px}
+#hud{position:absolute;top:env(safe-area-inset-top,0px);right:0;left:0;z-index:5;display:none;align-items:center;justify-content:space-between;gap:8px;padding:8px 11px;background:#06141fd4;border-bottom:1px solid #e2b87260;color:#fff5dc;font-size:clamp(11px,2.2vw,15px);pointer-events:none}#hud b{font-size:1.1em}#hud .roomMark{color:#ffe3a0}#hud .sub{color:#a8d3df}#touchControls{position:absolute;bottom:max(12px,env(safe-area-inset-bottom));left:10px;right:10px;z-index:8;display:none;align-items:end;justify-content:space-between;gap:16px;pointer-events:none;direction:ltr}#touchControls button{pointer-events:auto;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;touch-action:none;border:2px solid #ffe1a5;background:linear-gradient(#eac16d,#b98740);color:#17232d;border-radius:16px;min-width:72px;min-height:65px;padding:7px 10px;font-weight:900;font-size:17px;box-shadow:0 5px 12px #0008}#touchControls button:active{transform:translateY(2px);background:#fbe4a1}#touchControls .run{width:min(26vw,164px);height:96px;font-size:22px}#attack{display:flex;gap:6px;flex-wrap:wrap;justify-content:end;max-width:58vw;direction:rtl}#attack button{font-size:15px;min-height:61px;min-width:65px}#attack button:nth-child(1){background:#8fe1da}#touchControls button em{display:block;font-size:10px;opacity:.8;font-style:normal}#resultView{position:absolute;inset:0;z-index:18;display:none;align-items:center;justify-content:center;background:#061521ce;backdrop-filter:blur(7px);padding:20px;direction:rtl}
+#resultPanel{width:min(460px,96vw);background:linear-gradient(145deg,#172e3f,#091c2a);border:2px solid #e6ba70;box-shadow:0 22px 65px #000b;border-radius:24px;padding:29px 24px;text-align:center;color:#fff2cd}
+#resultTitle{margin:6px 0 12px;font-size:clamp(40px,8vw,64px);color:#ffda85}#resultSummary{font-size:18px;line-height:1.65;min-height:55px}#resultDistance{color:#9ddae4;font-size:15px;margin:10px 0 21px}#resultActions{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}#resultActions button{flex:1;min-width:130px}
+#splash{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;z-index:3;color:#fce6c5;background:#0c1926;pointer-events:none}#startupChip{display:none;position:absolute;z-index:9;top:54px;left:50%;transform:translateX(-50%);padding:7px 14px;border-radius:12px;background:#0b2636e8;color:#ffe1a0;text-align:center;font-size:14px;font-weight:bold;pointer-events:none;white-space:nowrap}#pauseChip{display:none;position:absolute;z-index:9;top:51px;left:50%;transform:translateX(-50%);padding:10px 20px;border-radius:13px;background:#102435ec;color:#ffe09d;text-align:center;font-weight:bold;pointer-events:none}a{color:#ffe1a5}#options{display:none}#backLink{font-size:12px;display:inline-block;margin:12px}
 @media(max-width:700px) and (orientation:portrait){#touchControls .run{height:82px}#attack button{min-height:60px;min-width:54px;font-size:13px;padding:5px}}
 </style>
 </head>
@@ -23,6 +26,7 @@
 <iframe id="original" src="./index.html" title="הגרפיקה המקורית של המרדף" loading="eager"></iframe>
 <div id="splash">טוען את המשחק המקורי…</div>
 <div id="hud"><span><b id="hudName">שחקן</b><span class="sub" id="hudDistance"></span></span><span class="roomMark" id="hudRoom"></span><span><b id="hudEnergy">קוזין 100%</b><span class="sub" id="hudFood"></span></span></div>
+<div id="resultView" role="dialog" aria-label="תוצאות המשחק"><section id="resultPanel"><div id="resultTitle">הפסדתם</div><p id="resultSummary"></p><p id="resultDistance"></p><div id="resultActions"><button class="btn" id="resultAgain">משחק חוזר</button><button class="btn dark" id="resultLeave">חזרה ללובי</button></div></section></div>
 <div id="pauseChip">ממתינים לחיבור מחדש…</div><div id="startupChip">יתרון פתיחה · 6 שניות</div>
 <div id="touchControls"><button class="run" id="runBtn">רוץ<em>החזק</em></button><div id="attack"><button id="powerBtn">כוח<em id="powerClock">מיוחד</em></button><button id="kickBtn">בעיטה</button><button id="punchBtn">אגרוף</button><button id="jumpBtn">קפיצה<em>פעמיים = סלטה</em></button></div></div>
 <div id="veil"><div id="panel">
@@ -37,12 +41,13 @@
 (()=>{'use strict';
 const $=id=>document.getElementById(id), PROTOCOL='kozin-full-3', URL='wss://kozin-online-server.onrender.com/full-v3', KEY='kozin-multiplayer-v3-session';
 const q=new URLSearchParams(location.search);if(/^\d{6}$/.test(q.get('room')||''))$('joinCode').value=q.get('room');
-let frame=null,ws=null,profile=null,room=null,session=null,ready=false,running=false,seq=0,held=false,latest=null,remote=null,reconnectTimer=null,reconnectStart=0,stopped=false,manualLeave=false,appReady=false,renderInstalled=false,lastSent=0,activeRound=null;const roomRoster=new Map();const HERO_LABELS={luzo:'הדר',yishai:'ישי',eyal:'אייל',moreno:'מורנו',hashi:'האשי',yona:'יונה',tzippy:'ציפי',michael:'מיכאל'};const heroName=id=>HERO_LABELS[id]||id||'דמות לא ידועה';const rememberRoster=ps=>{for(const p of ps||[]){const old=roomRoster.get(p.id)||{};roomRoster.set(p.id,{...old,...p,gear:{...(old.gear||{}),...(p.gear||{})}})}};const enrichedPlayers=ps=>(ps||[]).map(p=>{const old=roomRoster.get(p.id)||{};return {...old,...p,hero:p.hero||old.hero||'luzo',gear:{...(old.gear||{}),...(p.gear||{})}}});
+let frame=null,ws=null,profile=null,room=null,session=null,ready=false,running=false,seq=0,held=false,latest=null,remote=null,reconnectTimer=null,reconnectStart=0,stopped=false,manualLeave=false,appReady=false,renderInstalled=false,lastSent=0,activeRound=null,smoothSelf=null,smoothChaser=null,smoothRemote=null,lastPaintTime=0;const roomRoster=new Map();const HERO_LABELS={luzo:'הדר',yishai:'ישי',eyal:'אייל',moreno:'מורנו',hashi:'האשי',yona:'יונה',tzippy:'ציפי',michael:'מיכאל'};const heroName=id=>HERO_LABELS[id]||id||'דמות לא ידועה';const rememberRoster=ps=>{for(const p of ps||[]){const old=roomRoster.get(p.id)||{};roomRoster.set(p.id,{...old,...p,gear:{...(old.gear||{}),...(p.gear||{})}})}};const enrichedPlayers=ps=>(ps||[]).map(p=>{const old=roomRoster.get(p.id)||{};return {...old,...p,hero:p.hero||old.hero||'luzo',gear:{...(old.gear||{}),...(p.gear||{})}}});
 const announce=s=>$('status').textContent=s;
 const send=m=>{if(ws?.readyState===WebSocket.OPEN)try{ws.send(JSON.stringify(m));return true}catch{}return false};
-const roomView=()=>{$('options').style.display='none';$('roomSection').style.display='block';$('veil').classList.remove('hidden');$('touchControls').style.display='none';$('hud').style.display='none';};
-const menuView=()=>{$('options').style.display='block';$('roomSection').style.display='none';$('veil').classList.remove('hidden');$('touchControls').style.display='none';$('hud').style.display='none';room=null;running=false;ready=false;activeRound=null;roomRoster.clear();$('startupChip').style.display='none';};
-const playView=()=>{$('veil').classList.add('hidden');$('touchControls').style.display='flex';$('hud').style.display='flex';$('splash').style.display='none';};
+const hideResult=()=>{$('resultView').style.display='none'};
+const roomView=()=>{hideResult();$('options').style.display='none';$('roomSection').style.display='block';$('veil').classList.remove('hidden');$('touchControls').style.display='none';$('hud').style.display='none';};
+const menuView=()=>{hideResult();$('options').style.display='block';$('roomSection').style.display='none';$('veil').classList.remove('hidden');$('touchControls').style.display='none';$('hud').style.display='none';room=null;running=false;ready=false;activeRound=null;roomRoster.clear();$('startupChip').style.display='none';};
+const playView=()=>{hideResult();$('veil').classList.add('hidden');$('touchControls').style.display='flex';$('hud').style.display='flex';$('splash').style.display='none';};
 function getOwn(){return latest?.players?.find(p=>p.id===session?.id)}
 function saveSession(){if(!session)return;try{sessionStorage.setItem(KEY,JSON.stringify(session))}catch{}}
 function clearSession(){session=null;try{sessionStorage.removeItem(KEY)}catch{}}
@@ -60,29 +65,77 @@ function onMessage(m){
  if(m.type==='joined'){session={code:m.code,id:m.id,token:m.token};saveSession();room={code:m.code};reconnectStart=0;ready=false;roomView();$('roomCode').textContent=m.code;announce('מחובר לחדר! מחכה לחבר.');$('pauseChip').style.display='none';}
  if(m.type==='room'){
   room=m;rememberRoster(m.players);activeRound=m.round||activeRound;$('roomCode').textContent=m.code;$('waitingPlayers').textContent=(m.players||[]).map(p=>`${p.name} (${heroName(p.hero)}) ${p.connected?'●':'◌'} ${p.ready?'✓ מוכן':'ממתין'}`).join('  |  ');ready=!!m.players?.find(p=>p.id===session?.id)?.ready;$('readyBtn').textContent=ready?'מוכן ✓':'אני מוכן';
-  if(m.status==='waiting'){running=false;latest=null;remote=null;roomView();$('readyBtn').style.display='inline-flex';$('againBtn').style.display='none';announce('שני שחקנים צריכים ללחוץ ״אני מוכן״');}
-  if(m.status==='finished'){running=false;roomView();$('readyBtn').style.display='none';$('againBtn').style.display='inline-flex';}
+  if(m.status==='waiting'){running=false;latest=null;remote=null;smoothSelf=smoothChaser=smoothRemote=null;roomView();$('readyBtn').style.display='inline-flex';$('againBtn').style.display='none';announce('שני שחקנים צריכים ללחוץ ״אני מוכן״');}
+  if(m.status==='finished'){running=false;if(latest?.outcome)showResult(latest.outcome);else {roomView();$('readyBtn').style.display='none';$('againBtn').style.display='inline-flex';}}
   if(m.status==='running'){$('pauseChip').style.display=m.paused?'block':'none';if(!m.paused)playView();}
  }
- if(m.type==='started'){running=true;held=false;seq=0;latest=null;remote=null;activeRound=m.round||activeRound;revealGameCanvas();playView();announce('המרדף התחיל!');sendInput(false);}
+ if(m.type==='started'){running=true;held=false;seq=0;latest=null;remote=null;smoothSelf=smoothChaser=smoothRemote=null;lastPaintTime=0;activeRound=m.round||activeRound;revealGameCanvas();playView();announce('המרדף התחיל!');sendInput(false);}
  if(m.type==='snapshot'){
   if(!session||m.code!==session.code)return;if(activeRound&&m.round&&m.round!==activeRound)return;const players=enrichedPlayers(m.players);rememberRoster(players);const wasFinished=latest?.outcome;latest={...m,players};
   if(!frame?.game||!appReady)return;
-  if(m.outcome){running=false;held=false;sendInput(false);if(!wasFinished){roomView();$('readyBtn').style.display='none';$('againBtn').style.display='inline-flex';announce(m.outcome.win?'ברחתם מקוזין!':'קוזין תפס שחקן! נסו שוב.');}}
+  if(m.outcome){running=false;held=false;if(!wasFinished)showResult(m.outcome);}
   else{running=true;playView();}
   updateGame(latest);updateHud();
+  if(m.outcome)showResult(m.outcome);
  }
  if(m.type==='closed'){announce(m.reason||'החדר נסגר');clearSession();room=null;running=false;setTimeout(()=>menuView(),1200);}
  if(m.type==='error'){announce(m.message||'שגיאה בשרת');if(m.fatal){clearSession();room=null;running=false;menuView();}}
 }
-function patchRenderer(){if(renderInstalled||!frame)return;const r=frame.renderer,orig=r.draw;renderInstalled=true;
- r.draw=function(g){orig.call(this,g);if(!remote||g.state!=='playing')return;const ownGear=frame.wardrobe.equipped;const other=remote;try{
-  const otherHero=other.hero||roomRoster.get(other.id)?.hero||'luzo';frame.wardrobe.equipped={...(roomRoster.get(other.id)?.gear||{}),...(other.gear||{})};
-  const proxy={...g,wallet:{...g.wallet,selected:otherHero},player:other.player,power:{...g.power,...other.power,carrying:other.power?.type==='tzippy'&&(other.power?.remaining||0)>0,flying:!!other.power?.flying},combat:{...g.combat,...other.combat},input:{running:other.run||false},grace:0};
-  this.character(proxy,false);
-  this.text((other.name||'שחקן')+' · '+heroName(otherHero),other.player.x-this.camera,this.ground-(other.player.y||0)-199,16,'#8ef1ff',true);
- }catch(e){if(!this.remoteErrorLogged){console.warn('Kozin remote render error',e);this.remoteErrorLogged=true}}
- finally{frame.wardrobe.equipped=ownGear;}
+function showResult(outcome){
+ if(!session)return;
+ const win=!!outcome.win;
+ const caught=(outcome.caught||[]).map(id=>latest?.players?.find(p=>p.id===id)?.name||'אחד השחקנים');
+ $('resultTitle').textContent=win?'ניצחתם!':'הפסדתם!';
+ $('resultSummary').textContent=win?'הצלחתם לברוח מקוזין יחד!':caught.length?('קוזין תפס את '+caught.join(' ואת ')+'. נסו שוב!'):'קוזין תפס אתכם. נסו שוב!';
+ const me=getOwn(),distance=Math.round(Math.max(0,(me?.player?.x||320)-320)/10);
+ $('resultDistance').textContent='התקדמתם '+distance+' מטר · קוזין '+Math.max(0,Math.round(latest?.chaser?.energy||0))+'%';
+ $('resultView').style.display='flex';
+ $('touchControls').style.display='none';
+ $('veil').classList.add('hidden');
+ $('startupChip').style.display='none';
+}
+function patchRenderer(){
+ if(renderInstalled||!frame)return;
+ const r=frame.renderer,orig=r.draw,origCam=r.updateCamera;
+ renderInstalled=true;
+ // Keep authoritative server snapshots separate from display-only interpolation.
+ const interp=(last,target,k)=>{
+  if(!target)return null;
+  if(!last||!Number.isFinite(last.x)||Math.abs(target.x-last.x)>1500)return {x:target.x,y:target.y||0,phase:target.phase||0};
+  return {x:last.x+(target.x-last.x)*k,y:last.y+((target.y||0)-last.y)*k,phase:last.phase+((target.phase||0)-last.phase)*k};
+ };
+ r.updateCamera=function(g,dt){
+  if(!smoothSelf)return origCam.call(this,g,dt);
+  return origCam.call(this,{...g,player:{...g.player,x:smoothSelf.x,y:smoothSelf.y}},dt);
+ };
+ r.draw=function(g){
+  orig.call(this,g);
+  if(!remote||g.state!=='playing')return;
+  const ownGear=frame.wardrobe.equipped,other=remote;
+  try{
+   const otherHero=other.hero||roomRoster.get(other.id)?.hero||'luzo';
+   frame.wardrobe.equipped={...(roomRoster.get(other.id)?.gear||{}),...(other.gear||{})};
+   const displayOther=smoothRemote?{...other.player,x:smoothRemote.x,y:smoothRemote.y,phase:smoothRemote.phase}:other.player;
+   const proxy={...g,wallet:{...g.wallet,selected:otherHero},player:displayOther,power:{...g.power,...other.power,carrying:other.power?.type==='tzippy'&&(other.power?.remaining||0)>0,flying:!!other.power?.flying},combat:{...g.combat,...other.combat},input:{running:other.run||false},grace:0};
+   this.character(proxy,false);
+   this.text((other.name||'שחקן')+' · '+heroName(otherHero),displayOther.x-this.camera,this.ground-(displayOther.y||0)-199,16,'#8ef1ff',true);
+  }catch(e){if(!this.remoteErrorLogged){console.warn('Kozin remote render error',e);this.remoteErrorLogged=true}}
+  finally{frame.wardrobe.equipped=ownGear}
+ };
+ r.drawInterpolated=function(g){
+  if(g.state!=='playing'){this.draw(g);return}
+  const now=performance.now(),dt=lastPaintTime?Math.min(.05,Math.max(.001,(now-lastPaintTime)/1000)):1/60;
+  lastPaintTime=now;
+  const k=1-Math.exp(-20*dt);
+  smoothSelf=interp(smoothSelf,g.player,k);
+  smoothChaser=interp(smoothChaser,g.chaser,k);
+  smoothRemote=remote?.player?interp(smoothRemote,remote.player,k):null;
+  const priorPlayer=g.player,priorChaser=g.chaser;
+  try{
+   g.player={...priorPlayer,...smoothSelf};
+   g.chaser={...priorChaser,...smoothChaser};
+   this.draw(g);
+  }finally{g.player=priorPlayer;g.chaser=priorChaser}
  };
 }
 function revealGameCanvas(){const doc=$('original').contentDocument;if(!doc?.body)return;
@@ -112,10 +165,14 @@ function hidden(v){if(running||room?.status==='running'){hold(false);send({type:
 document.addEventListener('visibilitychange',()=>hidden(document.hidden));addEventListener('pagehide',()=>hidden(true));addEventListener('blur',()=>hold(false));
 $('createBtn').onclick=()=>beginRoom('create');$('joinBtn').onclick=()=>beginRoom('join');$('readyBtn').onclick=()=>send({type:'ready',ready:!ready});$('againBtn').onclick=()=>{send({type:'rematch'});$('againBtn').disabled=true;setTimeout(()=>$('againBtn').disabled=false,1200)};
 $('shareBtn').onclick=async()=>{const l=new URL(location.href);l.searchParams.set('room',session?.code||'');try{await navigator.clipboard.writeText(l.href);announce('קישור ההזמנה הועתק')}catch{announce('שתף את הקישור: '+l.href)}};
+$('resultAgain').onclick=()=>{$('againBtn').click();hideResult();roomView();announce('ממתינים למשחק חוזר…');};
+$('resultLeave').onclick=()=>$('leaveBtn').click();
 $('leaveBtn').onclick=()=>{manualLeave=true;send({type:'leave'});closeSocket();clearSession();menuView();announce('יצאת מהחדר')};
 async function setupFrame(){let attempt=0;while(attempt++<110){try{const f=$('original').contentWindow;const bridge=f.eval('({game,renderer,assets,wardrobe,controls})');if(bridge?.game&&bridge?.renderer&&bridge.assets.loaded&&bridge.wardrobe){// Read cosmetics from the original game, but never write an online round to its save.
 bridge.game.wallet.save=()=>{};bridge.game.wallet.flush=async()=>{};bridge.game.wallet.record=()=>{};
-frame=bridge;appReady=true;$('splash').style.display='none';$('options').style.display='block';$('nickname').value=bridge.game.wallet?.name||'שחקן';$('hero').value=bridge.game.wallet?.selected||'luzo';$('difficulty').value=bridge.game.difficulty||'normal';const css=f.document.createElement('style');css.textContent='#overlay,#hud,#subhud,#controls,#notice,#bossStatus{display:none!important}html,body{touch-action:none!important}';f.document.head.appendChild(css);announce('המנוע המקורי נטען. אפשר לפתוח חדר.');if(session?.token&&/^\d{6}$/.test(session.code||'')){startSocket(()=>send({type:'resume',protocol:PROTOCOL,...session}));}return;}}catch(e){if(attempt===110)announce('לא ניתן לטעון את המשחק המקורי: '+e.message)}await new Promise(r=>setTimeout(r,350))}announce('טעינת המשחק נכשלה. בדוק ש־index.html קיים באותו אתר.');}
+frame=bridge;appReady=true;
+// Online-only pixel cap: the original 4K canvas can stall desktop browsers when running inside an iframe.
+const baseResize=bridge.renderer.resize;bridge.renderer.resize=function(...args){baseResize.apply(this,args);const pixels=this.canvas.width*this.canvas.height;if(pixels>2200000){const scale=Math.sqrt(2200000/pixels);this.canvas.width=Math.round(this.canvas.width*scale);this.canvas.height=Math.round(this.canvas.height*scale);this.dpr*=scale;}};bridge.renderer.resize();$('splash').style.display='none';$('options').style.display='block';$('nickname').value=bridge.game.wallet?.name||'שחקן';$('hero').value=bridge.game.wallet?.selected||'luzo';$('difficulty').value=bridge.game.difficulty||'normal';const css=f.document.createElement('style');css.textContent='#overlay,#hud,#subhud,#controls,#notice,#bossStatus{display:none!important}html,body{touch-action:none!important}';f.document.head.appendChild(css);announce('המנוע המקורי נטען. אפשר לפתוח חדר.');if(session?.token&&/^\d{6}$/.test(session.code||'')){startSocket(()=>send({type:'resume',protocol:PROTOCOL,...session}));}return;}}catch(e){if(attempt===110)announce('לא ניתן לטעון את המשחק המקורי: '+e.message)}await new Promise(r=>setTimeout(r,350))}announce('טעינת המשחק נכשלה. בדוק ש־index.html קיים באותו אתר.');}
 setupFrame();
 })();
 </script>
