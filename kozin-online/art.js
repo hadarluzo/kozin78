@@ -14,6 +14,8 @@ async function load(){
   const heroes=extractObj(source,'const HERO_ART =');
   const assets=extractObj(source,'const ASSET_URLS =');
   const wardrobe=extractObj(source,'const WARDROBE_ART=');
+  const drop2=extractObj(source,'const DROP2_ART=');
+  const extra=extractObj(source,'const EXPANSION_ART');
   const keys=Object.keys(heroes);
   const loaded=await Promise.all(keys.map(async id=>[id,await loadImage(heroes[id])]));
   for(const [id,img] of loaded)if(img)art.hero[id]=img;
@@ -22,7 +24,14 @@ async function load(){
   art.run=await loadImage(assets.runv2);
   art.chaser=await loadImage(assets.characters);
   art.combat=await loadImage(assets.combat);
-  await Promise.all(Object.keys(wardrobe).filter(k=>!['equipment','shoe'].includes(k)).map(async id=>{art.costumes[id]=await loadImage(wardrobe[id]);}));
+  await Promise.all(['luzo','yona','yishai','eyal','hashi','moreno','michael','tzippy'].map(async id=>{
+   art.costumes[id]={};
+   if(wardrobe[id])art.costumes[id].wardrobe=await loadImage(wardrobe[id]);
+   if(drop2[id])art.costumes[id].drop2=await loadImage(drop2[id]);
+   if(drop2[id+'_tech'])art.costumes[id].tech=await loadImage(drop2[id+'_tech']);
+   if(drop2[id+'_fahima'])art.costumes[id].fahima=await loadImage(drop2[id+'_fahima']);
+   if(extra[id]&&!art.hero[id])art.hero[id]=await loadImage(extra[id]);
+  }));
   art.ready=true;
  }catch(e){art.failed=true;console.warn('Original artwork unavailable; basic graphics remain',e);}
  finally{art.loading=false;}
@@ -31,26 +40,46 @@ const runFrames=[[30,26,373,412],[525,34,301,400],[932,26,321,407],[1347,22,406,
 const chaserFrames=[[102,7,219,213],[472,6,156,214],[771,6,229,214],[1101,6,198,214],[95,220,215,226],[460,223,170,226],[771,223,246,226],[1108,220,220,228]];
 function player(ctx,p,x,feet,height=92){
  const mode=p.action==='kick'?11:p.action==='punch'?10:p.y>2?9:p.running?Math.floor(p.phase||0)%8:8;
- const outfit=art.costumes[p.hero];
- if(outfit&&['tech','fahima'].includes(p.gear?.outfit)){
-  const offset=p.gear.outfit==='fahima'?12:0,n=offset+mode;
-  const sw=outfit.width/4,sh=outfit.height/6;
-  ctx.drawImage(outfit,(n%4)*sw,Math.floor(n/4)*sh,sw,sh,x-53,feet-height,106,height);return true;
+ const gear=art.costumes[p.hero]||{},outfit=p.gear?.outfit;
+ if(outfit){
+  let atlas=null,frame=mode;
+  if((outfit==='dogs'||outfit==='paisley')&&gear.drop2){atlas=gear.drop2;if(outfit==='paisley')frame+=12;}
+  else if((outfit==='tech'||outfit==='fahima')&&gear.wardrobe){atlas=gear.wardrobe;if(outfit==='fahima')frame+=12;}
+  else if(gear[outfit])atlas=gear[outfit];
+  if(atlas){
+   const sx=(frame%4)*448,sy=Math.floor(frame/4)*384,scale=height/300;
+   ctx.drawImage(atlas,sx,sy,448,384,x-224*scale,feet-335*scale,448*scale,384*scale);
+   drawAccessories(ctx,p,x,feet,height);return true;
+  }
  }
  const atlas=art.hero[p.hero];
  if(atlas){
   const sx=(mode%4)*448,sy=Math.floor(mode/4)*384;
   const size=height/300;
   ctx.drawImage(atlas,sx,sy,448,384,x-224*size,feet-335*size,448*size,384*size);
-  return true;
+  drawAccessories(ctx,p,x,feet,height);return true;
  }
  if(p.hero==='luzo'&&art.run){
   const box=runFrames[p.y>2?2:Math.floor(p.phase||0)%8];
   const w=height*box[2]/box[3];
   ctx.drawImage(art.run,...box,x-w/2,feet-height,w,height);
-  return true;
+  drawAccessories(ctx,p,x,feet,height);return true;
  }
  return false;
+}
+function drawAccessories(ctx,p,x,feet,height){
+ const g=p.gear||{};ctx.save();
+ if(g.head==='kippah'){ctx.fillStyle='#242c35';ctx.beginPath();ctx.ellipse(x-1,feet-height*.87,height*.11,height*.045,0,Math.PI,Math.PI*2);ctx.fill();}
+ if(g.fringe==='tekhelet'){
+   ctx.strokeStyle='#38b9e0';ctx.lineWidth=Math.max(1,height/80);
+   for(const dx of [-12,-5,6,14]){ctx.beginPath();ctx.moveTo(x+dx,feet-height*.43);ctx.lineTo(x+dx-2,feet-height*.24);ctx.stroke();}
+ }
+ if(g.feet){
+   ctx.fillStyle=g.feet==='kozinshoe'?'#fff0ab':'#e9ebfa';
+   ctx.fillRect(x-height*.19,feet-height*.08,height*.15,height*.09);
+   ctx.fillRect(x+height*.04,feet-height*.08,height*.15,height*.09);
+ }
+ ctx.restore();
 }
 function chaserDraw(ctx,x,feet,height,phase){
  if(!art.chaser)return false;
