@@ -159,11 +159,23 @@ wss.on('connection',ws=>{
   player.running=false;player.ws=null;player.graceUntil=Date.now()+RECONNECT_MS;
   if(room.status==='running')emit(room,{type:'peer-disconnected',id:player.id,graceMs:RECONNECT_MS});
   if(room.status!=='running')emit(room,roomState(room));
-  if(room.players.every(p=>!p.ws))rooms.delete(room.code);
+  // Keep the room during the reconnect grace period, even when both phones disconnect.
  });
  ws.on('error',()=>{});
 });
 const timer=setInterval(()=>{for(const r of rooms.values())advance(r);},1000/30);timer.unref?.();
 const ping=setInterval(()=>{for(const ws of wss.clients){if(!ws.alive)ws.terminate();else{ws.alive=false;ws.ping();}}},30000);ping.unref?.();
-const cleanup=setInterval(()=>{for(const [code,r] of rooms)if(Date.now()-r.created>4*3600000)rooms.delete(code);},60000);cleanup.unref?.();
+const cleanup=setInterval(()=>{
+ const now=Date.now();
+ for(const [code,r] of rooms){
+  if(now-r.created>4*3600000){for(const p of r.players)send(p.ws,{type:'error',message:'החדר פג תוקף'});rooms.delete(code);continue;}
+  if(r.status==='waiting'){
+   const drop=r.players.filter(p=>!p.ws&&now>p.graceUntil);
+   if(drop.length){r.players=r.players.filter(p=>p.ws||now<=p.graceUntil);r.players.forEach(p=>p.ready=false);emit(r,roomState(r));}
+   if(r.players.length===0)rooms.delete(code);
+  }else if(r.status==='finished'&&r.players.every(p=>!p.ws&&now>p.graceUntil)){
+   rooms.delete(code);
+  }
+ }
+},5000);cleanup.unref?.();
 httpServer.listen(PORT,'0.0.0.0',()=>console.log('Kozin online v2 listening on '+PORT));
