@@ -5,7 +5,7 @@ const url=process.argv[2]||'ws://127.0.0.1:8080/full-v3';
 const wait=ms=>new Promise(r=>setTimeout(r,ms));
 class Client{
  constructor(){this.messages=[];this.seq=0;}
- async open(){this.ws=new WebSocket(url);this.ws.on('message',v=>{const m=JSON.parse(v);this.messages.push(m);if(m.type==='snapshot')this.latest=m;if(m.type==='joined')this.identity=m;});await new Promise((yes,no)=>{this.ws.once('open',yes);this.ws.once('error',no);});return this;}
+ async open(){this.ws=new WebSocket(url,url.startsWith('wss://')?{headers:{Origin:'https://kozin78.vercel.app'}}:undefined);this.ws.on('message',v=>{const m=JSON.parse(v);this.messages.push(m);if(m.type==='snapshot')this.latest=m;if(m.type==='joined')this.identity=m;});await new Promise((yes,no)=>{this.ws.once('open',yes);this.ws.once('error',no);});return this;}
  send(m){this.ws.send(JSON.stringify(m));}
  async until(pred,ms=10000){const end=Date.now()+ms;while(Date.now()<end){const m=this.messages.find(pred);if(m)return m;await wait(25);}throw Error('message timeout '+JSON.stringify(this.messages.slice(-2)));}
  input(run){this.send({type:'input',seq:++this.seq,run,lift:false,width:1000});}
