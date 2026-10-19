@@ -31,8 +31,9 @@ jobs:
               print('CONTEXT:', repr(original[max(0, m.start()-110):m.end()+140]))
           # Only modify Hebrew display text. Keep the stable tzippy ID,
           # power, cosmetics, ownership and saves exactly as before.
-          updated = original.replace('ציפי.סבתא', 'סבתא').replace('ציפי סבתא', 'סבתא').replace('ציפי', 'סבתא')
+          updated = original.replace('ציפי.סבתא', 'סבתא').replace('ציפי סבתא', 'סבתא').replace('ציפי · סבתא', 'סבתא').replace('ציפי', 'סבתא').replace('סבתא · סבתא', 'סבתא')
           assert 'ציפי' not in updated
+          assert 'סבתא · סבתא' not in updated
           assert len(updated) > 1000000, 'Unexpectedly short game file'
           if updated != original:
               path.write_text(updated, encoding='utf-8')
