@@ -60,7 +60,7 @@ export function attachFullOnline(server,{route=true}={}){
    if(m.type==='input'){
     if(!Number.isSafeInteger(m.seq)||m.seq<=p.lastSeq||m.seq>p.lastSeq+100000)return;p.lastSeq=m.seq;p.lastInput=now;r.world.input(p.id,m);
    }else if(m.type==='action'&&['jump','punch','kick','power'].includes(m.action)){
-    if(now-(p.lastAction||0)<75)return;p.lastAction=now;r.world.action(p.id,m.action);
+    const minGap=m.action==='jump'?35:75;if(now-(p.lastAction||0)<minGap)return;p.lastAction=now;r.world.action(p.id,m.action);
    }
   });
   ws.on('close',()=>{connections.set(ip,Math.max(0,(connections.get(ip)||1)-1));const r=ws.room,p=ws.player;if(!r||!p||p.ws!==ws)return;p.ws=null;p.ready=false;p.deadline=Date.now()+GRACE;r.world?.input(p.id,{run:false,lift:false});emit(r,state(r));});ws.on('error',()=>{});
