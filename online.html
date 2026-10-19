@@ -60,7 +60,7 @@ try{const profile=JSON.parse(localStorage.getItem('kuzin-local-v2')||'null');if(
 
 function setStatus(s){$('status').textContent=s}
 function send(m){if(ws?.readyState===WebSocket.OPEN)ws.send(JSON.stringify(m))}
-function showMenu(show){$('menu').style.display=show?'grid':'none';$('controls').style.display=show?'none':'flex';$('actions').style.display=show?'none':'flex';if(!show)window.KozinOriginalArt?.load();}
+function showMenu(show){$('menu').style.display=show?'grid':'none';$('controls').style.display=show?'none':'flex';$('actions').style.display=show?'none':'flex';if(!show)window.KozinOriginalArt?.load(roomPlayers);}
 let onConnected=null;
 function connect(after){
  if(ws?.readyState===WebSocket.OPEN){after();return}
