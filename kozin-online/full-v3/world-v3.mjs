@@ -53,12 +53,14 @@ export class FullWorld {
   this.assignIds();
   const trailing=this.games.reduce((a,b)=>a.player.x<b.player.x?a:b),k=this.chaser;
   if(!frozen){
-   const held=this.games.some(g=>g.input.running||g.power.carrying);
+   const trailingMoving=trailing.input.running||trailing.power.carrying;
    const base=trailing.profile.speed*(1+trailing.profile.growth*Math.min(1,this.time/120));
-   const wipe=this.games.some(g=>g.combat.wipe>0),speed=held?base-this.boss.pursuitRate()-(wipe?36:0):78;
+   // Use the slowest runner, not any runner, to decide the chase pace.
+   // Otherwise a stationary teammate can be caught almost instantly when the other runs.
+   const wipe=this.games.some(g=>g.combat.wipe>0),speed=trailingMoving?base-this.boss.pursuitRate()-(wipe?36:0):65;
    if(openingGrace){
     // Keep Kozin visible near the slower player, but never allow a startup catch.
-    k.x=Math.min(trailing.player.x-(CONFIG.catchGap+100),Math.max(k.x,trailing.player.x-(CONFIG.startGap+35)));
+    k.x=Math.min(trailing.player.x-(CONFIG.catchGap+165),Math.max(k.x,trailing.player.x-(CONFIG.startGap+35)));
    }else if(this.time>1.6||held)k.x+=Math.max(0,speed)*dt*scale;
    const trail=trailing.trail;while(trail.length>2&&trail[1].x<k.x)trail.shift();
    if(trail.length>1&&k.x>=trail[0].x){const [a,b]=trail;k.y=a.y+(b.y-a.y)*Math.max(0,Math.min(1,(k.x-a.x)/(b.x-a.x||1)));}else k.y=0;
@@ -77,7 +79,7 @@ export class FullWorld {
   for(const g of this.games)g.events=[];
  }
  snapshot(){
-  const keys=['player','power','score','count','combo','maxCombo','hits','missed','distance','cleared','shield','grace','currentSpeed','celebration','particles','popups','bubbles'];
+  const keys=['player','power','score','count','combo','maxCombo','hits','missed','distance','cleared','shield','grace','currentSpeed','celebration','popups','bubbles'];
   return copy({protocol:PROTOCOL,tick:this.tick,time:this.time,difficulty:this.difficulty,mapIndex:this.games[0].mapIndex,outcome:this.outcome,chaser:this.chaser,boss:this.boss,obstacles:this.obstacles,foods:this.foods,enemies:this.enemies,players:this.games.map(g=>({id:g.id,name:g.wallet.name,hero:g.wallet.selected,gear:g.gear,run:g.input.running,lift:g.input.lifting,...Object.fromEntries(keys.map(k=>[k,g[k]])),combat:{...g.combat,enemies:undefined},reward:{food:g.wallet.food,xp:g.wallet.xp,best:g.wallet.best}}))});
  }
 }
