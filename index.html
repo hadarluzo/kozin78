@@ -2435,7 +2435,7 @@ function showMenu(){
   dom('lobbyLeaders').onclick=showLeaderboard;
   dom('lobbyShop').onclick=showShopSelection;
   dom('lobbyPlayers').onclick=()=>showPlayers();
-  dom('lobbyOnline').onclick=()=>{location.href=new URL('online.html',location.href).href;};
+  dom('lobbyOnline').onclick=()=>{location.href=new URL('online.html?enter=1',location.href).href;};
   difficultyButtons.forEach(([id])=>dom('diff_'+id).onclick=()=>{game.difficulty=id;showMenu();});
 }
 
