@@ -239,4 +239,12 @@ const cleanup=setInterval(()=>{
   }
  }
 },5000);cleanup.unref?.();
-httpServer.listen(PORT,'0.0.0.0',()=>console.log('Kozin online v2 listening on '+PORT));
+httpServer.listen(PORT,'0.0.0.0',()=>{
+ console.log('Kozin online v2 listening on '+PORT);
+ if(process.env.KOZIN_SMOKE_ON_START!=='0'){
+  const testTimer=setTimeout(()=>{
+   import('./smoke.mjs').then(m=>m.run(PORT)).catch(e=>console.error('KOZIN_SMOKE_FAIL',e));
+  },1200);
+  testTimer.unref?.();
+ }
+});
