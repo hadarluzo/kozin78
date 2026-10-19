@@ -1,0 +1,32 @@
+name: Kozin full online verification
+on:
+  push:
+    paths:
+      - "kozin-online/**"
+      - ".github/workflows/kozin-full-online-check.yml"
+  workflow_dispatch:
+jobs:
+  multiplayer:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install game server dependencies
+        run: npm ci --prefix kozin-online || npm install --prefix kozin-online
+      - name: Run original-world multiplayer tests
+        run: node kozin-online/full-v3/test.mjs
+      - name: Run real two-client WebSocket smoke test
+        shell: bash
+        run: |
+          set -eo pipefail
+          PORT=9087 KOZIN_SMOKE_ON_START=0 npm start --prefix kozin-online > /tmp/kozin-server.log 2>&1 &
+          server_pid=$!
+          trap 'kill $server_pid 2>/dev/null || true; cat /tmp/kozin-server.log' EXIT
+          for i in $(seq 1 40); do
+            if curl -fsS http://127.0.0.1:9087/full-v3/health > /dev/null; then break; fi
+            sleep 0.5
+          done
+          node kozin-online/full-v3/live-test.mjs ws://127.0.0.1:9087/full-v3
