@@ -35,7 +35,11 @@ export async function run(port){
   for(const [group,id] of [['ASSET_URLS','day'],['ASSET_URLS','characters'],['HERO_ART','yona'],['DROP2_ART','luzo'],['EXPANSION_ART','michael']]){
    const response=await fetch(url+'/assets/'+group+'/'+id);
    const content=await response.arrayBuffer();
-   check('asset-'+group+'-'+id,response.ok&&content.byteLength>20000&&response.headers.get('content-type').startsWith('image/')&&response.headers.get('access-control-allow-origin')==='*');
+   if(!response.ok||content.byteLength<=20000||!response.headers.get('content-type')?.startsWith('image/')||response.headers.get('access-control-allow-origin')!=='*'){
+    const errorInfo=Buffer.from(content).subarray(0,120).toString('utf8');
+    throw Error('asset-'+group+'-'+id+' status='+response.status+' bytes='+content.byteLength+' type='+response.headers.get('content-type')+' cors='+response.headers.get('access-control-allow-origin')+' text='+errorInfo);
+   }
+   check('asset-'+group+'-'+id,true);
   }
   a=await connect(port);b=await connect(port);
   check('two-independent-connections',!!(await waitFor(a,m=>m.type==='hello'))&&!!(await waitFor(b,m=>m.type==='hello')));
