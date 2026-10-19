@@ -46,7 +46,7 @@ let frame=null,ws=null,profile=null,room=null,session=null,ready=false,running=f
 function syncAccountProfile(){
  if(!frame)return;
  const wallet=frame.game.wallet;
- const owned=wallet.owned instanceof Set?wallet.owned:new Set(Array.isArray(wallet.owned)?wallet.owned:[]);
+ const owned=new Set(wallet.owned&&typeof wallet.owned[Symbol.iterator]==='function'?[...wallet.owned]:[]);
  owned.add('luzo');
  const heroSelect=$('hero'),chosen=owned.has(heroSelect.value)?heroSelect.value:wallet.selected;
  heroSelect.replaceChildren();
