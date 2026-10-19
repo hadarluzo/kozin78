@@ -30,9 +30,9 @@ a{color:#ffe5a5}
 <div id="menu"><section id="panel">
 <h1>המרדף של קוזין ⚔</h1>
 <p>שני שחקנים, מסלול משותף, מצלמה נפרדת לכל אחד</p>
-<small>גרסת בטא נפרדת. השמירות, הבגדים והכסף של המשחק הרגיל אינם משתנים.</small>
+<small>גרסת בטא: שם השחקן והדמות שנבחרו במשחק הרגיל נטענים אוטומטית. הכסף, הבגדים והשמירות אינם משתנים.</small>
 <input id="name" maxlength="20" placeholder="השם שלך" value="שחקן" autocomplete="nickname">
-<select id="hero"><option value="luzo">הדר</option><option value="tzippy">סבתא</option><option value="michael">מיכאל</option><option value="moreno">מורנו</option><option value="eyal">אייל</option></select>
+<select id="hero"><option value="luzo">הדר</option><option value="yona">יונה</option><option value="yishai">ישי</option><option value="eyal">אייל</option><option value="hashi">חאשי</option><option value="tzippy">סבתא</option><option value="michael">מיכאל</option><option value="moreno">מורנו</option></select>
 <div class="buttons"><button id="create">צור חדר</button><button id="join">הצטרף לחדר</button></div>
 <input id="code" maxlength="6" placeholder="קוד חדר בן 6 ספרות" inputmode="numeric" pattern="[0-9]*" dir="ltr">
 <div id="roomCode"></div>
@@ -51,6 +51,9 @@ const $=id=>document.getElementById(id),canvas=$('game'),ctx=canvas.getContext('
 let ws=null,myId='',roomCode='',roomPlayers=[],isReady=false,running=false,snapshot=null,held=false,last=performance.now(),camera=0;
 const params=new URLSearchParams(location.search);
 if(params.has('room'))$('code').value=(params.get('room')||'').replace(/\D/g,'').slice(0,6);
+const HERO_COLORS={luzo:'#222b32',yona:'#91bfff',yishai:'#dcb0db',eyal:'#e9a75a',hashi:'#9ec881',tzippy:'#cc87a3',michael:'#e87c6e',moreno:'#a493f0'};
+try{const profile=JSON.parse(localStorage.getItem('kuzin-local-v2')||'null');if(profile){$('name').value=String(profile.name||'שחקן').slice(0,20);if(Object.hasOwn(HERO_COLORS,profile.selected))$('hero').value=profile.selected;}}catch{}
+
 function setStatus(s){$('status').textContent=s}
 function send(m){if(ws?.readyState===WebSocket.OPEN)ws.send(JSON.stringify(m))}
 function showMenu(show){$('menu').style.display=show?'grid':'none';$('controls').style.display=show?'none':'flex'}
@@ -125,9 +128,9 @@ function draw(now){
   ctx.font='bold 13px Arial';ctx.textAlign='center';ctx.fillStyle='#fff0cb';ctx.fillText('קוזין',k,g-121);
   for(const p of snapshot.players){
    const x=p.x-camera,y=g-p.y,mine=p.id===myId;
-   ctx.fillStyle=mine?'#66d8fa':'#ffa94d';ctx.fillRect(x-13,y-59,26,38);
+   ctx.fillStyle=HERO_COLORS[p.hero]||'#66d8fa';ctx.fillRect(x-13,y-59,26,38);
    ctx.fillStyle='#edbd91';ctx.beginPath();ctx.arc(x,y-70,16,0,2*Math.PI);ctx.fill();
-   ctx.fillStyle=mine?'#66d8fa':'#ffb75e';ctx.fillRect(x-12,y-22,10,22);ctx.fillRect(x+3,y-22,10,22);
+   ctx.fillStyle=HERO_COLORS[p.hero]||'#66d8fa';ctx.fillRect(x-12,y-22,10,22);ctx.fillRect(x+3,y-22,10,22);
    ctx.fillStyle='#fff7e0';ctx.font='bold 14px Arial';ctx.fillText(p.name,x,y-101);
   }
  }else{
