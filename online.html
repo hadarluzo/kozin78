@@ -34,7 +34,7 @@
 <div id="touchControls"><button class="run" id="runBtn">רוץ<em>החזק</em></button><div id="attack"><button id="powerBtn">כוח<em id="powerClock">מיוחד</em></button><button id="kickBtn">בעיטה</button><button id="punchBtn">אגרוף</button><button id="jumpBtn">קפיצה<em>פעמיים = סלטה</em></button></div></div>
 <div id="veil"><div id="panel">
 <h1>המרדף של קוזין</h1><p>אונליין · שני חברים בורחים יחד מקוזין</p><p class="muted">אותה גרפיקה ומנוע משחק מקוריים. כל אחד רואה את המצלמה שלו.</p>
-<div id="options"><label for="nickname">שם המשתמש במשחק</label><input id="nickname" readonly aria-readonly="true" placeholder="נטען מהחשבון" maxlength="24"><p class="muted" id="accountNote">טוען את פרופיל השחקן...</p><div class="twocol"><div><label for="heroPicker">הדמות שלי</label><select id="hero" hidden aria-hidden="true"></select><button type="button" id="heroPicker" class="hero-picker" aria-haspopup="dialog"><canvas id="chosenHeroPortrait" width="74" height="74"></canvas><span id="chosenHeroName">בחר דמות</span><span class="chevron">⌄</span></button></div><div><label for="difficulty">רמת קושי</label><select id="difficulty"><option value="easy">קל</option><option value="normal" selected>בינוני</option><option value="hard">קשה</option><option value="impossible">בלתי אפשרי</option></select></div></div>
+<div id="options"><label for="nickname">שם המשתמש במשחק</label><input id="nickname" readonly aria-readonly="true" placeholder="שם החשבון או שם זמני" maxlength="24" autocomplete="nickname"><p class="muted" id="accountNote">טוען את פרופיל השחקן...</p><div class="twocol"><div><label for="heroPicker">הדמות שלי</label><select id="hero" hidden aria-hidden="true"></select><button type="button" id="heroPicker" class="hero-picker" aria-haspopup="dialog"><canvas id="chosenHeroPortrait" width="74" height="74"></canvas><span id="chosenHeroName">בחר דמות</span><span class="chevron">⌄</span></button></div><div><label for="difficulty">רמת קושי</label><select id="difficulty"><option value="easy">קל</option><option value="normal" selected>בינוני</option><option value="hard">קשה</option><option value="impossible">בלתי אפשרי</option></select></div></div>
 <div class="actions"><button class="btn" id="createBtn">צור חדר</button><button class="btn dark" id="joinBtn">הצטרף לחדר</button></div><input id="joinCode" maxlength="6" inputmode="numeric" pattern="[0-9]{6}" placeholder="קוד בן 6 ספרות" dir="ltr" autocomplete="off">
 <p class="muted">בגדים וכוחות נלקחים מהמשחק הרגיל. האונליין אינו מעניק או מוציא כסף מהארנק.</p></div>
 <div id="roomSection"><p>קוד החדר שלך</p><div id="roomCode" class="room"></div><button class="btn dark wide" id="shareBtn">העתק קישור להזמנת חבר</button><div id="waitingPlayers"></div><div class="actions"><button class="btn" id="readyBtn">אני מוכן</button><button class="btn dark" id="againBtn" style="display:none">משחק חוזר</button></div><button class="btn ghost wide" id="leaveBtn">יציאה מהחדר</button></div>
@@ -101,9 +101,21 @@ function syncAccountProfile(){
  }
  heroSelect.value=owned.has(chosen)?chosen:owned.has(wallet.selected)?wallet.selected:'luzo';
  const accountName=String(wallet.cloudUserName||wallet.name||'').trim();
- const hasName=accountName&&accountName!=='שחקן חדש'&&accountName!=='שחקן';
- $('nickname').value=hasName?accountName:(wallet.user?'שחקן':'אורח');
- $('accountNote').textContent=wallet.user?'השם והדמויות נטענו מהחשבון שלך.':'משחק מקומי: הדמויות נטענו מהשמירה במכשיר הזה. התחבר בלובי הרגיל כדי להשתמש בהתקדמות החשבון.';
+ const validName=accountName&&!['שחקן חדש','שחקן','אורח'].includes(accountName);
+ const authenticated=!!wallet.user&&validName;
+ const nameInput=$('nickname');
+ const existing=String(nameInput.value||'').trim();
+ if(authenticated){
+  nameInput.readOnly=true;nameInput.setAttribute('aria-readonly','true');
+  nameInput.value=accountName;
+  $('accountNote').textContent='מחובר לחשבון '+accountName+' · רק הדמויות שבבעלותך זמינות';
+ }else{
+  nameInput.readOnly=false;nameInput.removeAttribute('aria-readonly');
+  let stored='';try{stored=sessionStorage.getItem('kozin-online-guest-name')||''}catch{}
+  nameInput.value=(existing&& !['שחקן חדש','שחקן','אורח'].includes(existing)?existing:'')||(validName?accountName:'')||stored;
+  $('accountNote').textContent=wallet.user?'שם החשבון לא נטען. ניתן להקליד שם זמני או לחזור ללובי ולעדכן את הפרופיל.':'אין כרגע חשבון מחובר. אפשר לשחק כאורח: הכנס שם זמני, או התחבר דרך הלובי לקבלת שם החשבון והדמויות שלך.';
+ }
+
  updateHeroPicker();
 }
 const announce=s=>$('status').textContent=s;
@@ -123,7 +135,14 @@ function startSocket(onOpen){clearTimeout(reconnectTimer);closeSocket();manualLe
  ws.onerror=()=>announce('השרת לא זמין כרגע. מנסה להתחבר…');
  ws.onclose=()=>{if(ws!==current||manualLeave)return;running=false;held=false;$('pauseChip').style.display='block';if(!reconnectStart)reconnectStart=Date.now();const elapsed=Date.now()-reconnectStart;if(session&&elapsed<59000){announce('מחדש חיבור…');reconnectTimer=setTimeout(()=>startSocket(()=>send({type:'resume',protocol:PROTOCOL,code:session.code,id:session.id,token:session.token})),Math.min(4500,800+Math.floor(elapsed/3000)*600));}else{clearSession();reconnectStart=0;$('pauseChip').style.display='none';announce('החיבור נותק. פתחו חדר חדש.');menuView();}};
 }
-function beginRoom(kind){if(!appReady){announce('המנוע המקורי עוד נטען, נסה שוב בעוד רגע');return}syncAccountProfile();const code=$('joinCode').value.trim();if(kind==='join'&&!/^\d{6}$/.test(code)){announce('צריך להזין קוד חדר בן 6 ספרות');return}const wallet=frame.game.wallet;if(!wallet.owned.has($('hero').value)){announce('הדמות הזו לא פתוחה בחשבון שלך');return}clearSession();reconnectStart=0;profile={name:$('nickname').value.trim().slice(0,24)||'אורח',hero:$('hero').value,gear:{...frame.wardrobe.equipped},difficulty:$('difficulty').value};$('createBtn').disabled=$('joinBtn').disabled=true;startSocket(()=>send({type:kind,protocol:PROTOCOL,...profile,...(kind==='join'?{code}:{})}));setTimeout(()=>{$('createBtn').disabled=$('joinBtn').disabled=false},2400);}
+function beginRoom(kind){if(!appReady){announce('המנוע המקורי עוד נטען, נסה שוב בעוד רגע');return}syncAccountProfile();const code=$('joinCode').value.trim();if(kind==='join'&&!/^\d{6}$/.test(code)){announce('צריך להזין קוד חדר בן 6 ספרות');return}const wallet=frame.game.wallet;
+ const chosenName=String($('nickname').value||'').trim();
+ if(!chosenName||['שחקן חדש','שחקן','אורח'].includes(chosenName)){
+  announce('כתוב שם שחקן או התחבר לחשבון דרך הלובי כדי לטעון את שם המשתמש.');
+  $('nickname').focus();return;
+ }
+ if(!wallet.user){try{sessionStorage.setItem('kozin-online-guest-name',chosenName)}catch{}}
+ if(!wallet.owned.has($('hero').value)){announce('הדמות הזו לא פתוחה בחשבון שלך');return}clearSession();reconnectStart=0;profile={name:chosenName.slice(0,24),hero:$('hero').value,gear:{...frame.wardrobe.equipped},difficulty:$('difficulty').value};$('createBtn').disabled=$('joinBtn').disabled=true;startSocket(()=>send({type:kind,protocol:PROTOCOL,...profile,...(kind==='join'?{code}:{})}));setTimeout(()=>{$('createBtn').disabled=$('joinBtn').disabled=false},2400);}
 function onMessage(m){
  if(m.type==='hello'){if(m.protocol!==PROTOCOL){announce('גרסת שרת לא תואמת');return}}
  if(m.type==='joined'){session={code:m.code,id:m.id,token:m.token};saveSession();room={code:m.code};reconnectStart=0;ready=false;roomView();$('roomCode').textContent=m.code;announce('מחובר לחדר! מחכה לחבר.');$('pauseChip').style.display='none';}
@@ -271,7 +290,12 @@ $('shareBtn').onclick=async()=>{const l=new URL(location.href);l.searchParams.se
 $('resultAgain').onclick=()=>{$('againBtn').click();hideResult();roomView();announce('ממתינים למשחק חוזר…');};
 $('resultLeave').onclick=()=>$('leaveBtn').click();
 $('leaveBtn').onclick=()=>{manualLeave=true;send({type:'leave'});closeSocket();clearSession();menuView();announce('יצאת מהחדר')};
-async function setupFrame(){let attempt=0;while(attempt++<110){try{const f=$('original').contentWindow;const bridge=f.eval('({game,renderer,assets,wardrobe,controls})');if(bridge?.game&&bridge?.renderer&&bridge.assets.loaded&&bridge.wardrobe){await bridge.game.wallet.ready;// Wait for the real cloud account and ownership to finish loading.
+async function setupFrame(){let attempt=0;while(attempt++<110){try{const f=$('original').contentWindow;const bridge=f.eval('({game,renderer,assets,wardrobe,controls})');if(bridge?.game&&bridge?.renderer&&bridge.assets.loaded&&bridge.wardrobe){
+await bridge.game.wallet.ready;
+if(!bridge.game.wallet.user&&typeof bridge.game.wallet.cloudLoad==='function'){
+ try{await bridge.game.wallet.cloudLoad()}catch(e){console.warn('Optional account refresh unsuccessful',e)}
+}
+// Wait for the real account and ownership to finish loading.
 // Read cosmetics from the original game, but never write an online round to its save.
 bridge.game.wallet.save=()=>{};bridge.game.wallet.flush=async()=>{};bridge.game.wallet.record=()=>{};
 frame=bridge;appReady=true;
