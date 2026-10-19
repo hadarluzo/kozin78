@@ -9,9 +9,9 @@ function engine(seed){
 }
 const copy=x=>JSON.parse(JSON.stringify(x));
 export class FullWorld {
- constructor(profiles,difficulty='normal',seed=Date.now()){
+ constructor(profiles,difficulty='normal',seed=Date.now(),options={}){
   this.api=engine(seed);const {RunnerGame,DIFFICULTIES,CONFIG}=this.api;
-  this.difficulty=DIFFICULTIES[difficulty]?difficulty:'normal';this.tick=0;this.time=0;this.outcome=null;this.sequence=0;
+  this.difficulty=DIFFICULTIES[difficulty]?difficulty:'normal';this.tick=0;this.time=0;this.outcome=null;this.sequence=0;this.startDelay=options.countdown===true?5:0;
   this.games=profiles.map((p,i)=>{const g=new RunnerGame({effect(){},music(){}});g.difficulty=this.difficulty;g.wallet.selected=this.api.HEROES[p.hero]?p.hero:'luzo';g.wallet.name=p.name;g.input={running:false,lifting:false,clear(){this.running=false;this.lifting=false;}};g.start();g.id=p.id;g.gear=p.gear;g.secondary=!!i;g.player.x+=i*110;g.hitIds=new Set();g.passedIds=new Set();g.contactIds=new Set();g.viewWidth=1000;g.events=[];return g;});
   this.chaser=this.games[0].chaser;this.chaser.x=this.games[0].player.x-CONFIG.startGap;this.boss=this.games[0].boss;
   this.obstacles=this.games[0].obstacles;this.foods=this.games[0].foods;this.enemies=[];
@@ -20,16 +20,20 @@ export class FullWorld {
   this.assignIds();
  }
  assignIds(){for(const list of [this.obstacles,this.foods,this.enemies])for(const x of list)x.netId??=++this.sequence;}
- action(id,action){const g=this.games.find(g=>g.id===id);if(!g||this.outcome)return false;
+ action(id,action){const g=this.games.find(g=>g.id===id);if(!g||this.outcome||this.time<this.startDelay)return false;
   if(action==='jump'){g.jump();return true;}if(action==='power'){g.visibleRight=g.player.x+Math.min(1500,Math.max(700,g.viewWidth))*.57;return g.power.activate(g);}if(['kick','punch'].includes(action))return g.combat.strike(g,action);return false;
  }
  input(id,m){const g=this.games.find(g=>g.id===id);if(g){g.input.running=m.run===true;g.input.lifting=m.lift===true;g.viewWidth=Math.min(1500,Math.max(700,Number(m.width)||1000));}}
  step(dt=1/60){
   if(this.outcome)return;
   const {CONFIG}=this.api;this.tick++;this.time+=dt;
-  // A real multiplayer room needs a short protected opening so both phone clients
-  // can load the scene and discover the hold-to-run control before pursuit starts.
-  const openingGrace=this.time<6;
+  // Countdown is authoritative: no movement, obstacles or boss attacks until GO.
+  // Clients cannot bypass it with early input or power messages.
+  if(this.time<this.startDelay)return;
+  // Protect the first second and a half after the countdown while players
+  // discover the controls. Non-countdown test worlds keep the original grace.
+  const graceEnd=this.startDelay?this.startDelay+1.5:6;
+  const openingGrace=this.time<graceEnd;
   const lag=this.games.reduce((a,b)=>a.player.x<b.player.x?a:b);
   // One shared generator, boss, chaser and enemy set for both players.
   const owner=this.generator,savedX=owner.player.x;owner.player.x=Math.max(...this.games.map(g=>g.player.x));owner.obstacles=this.obstacles;owner.foods=this.foods;owner.boss=this.boss;this.spawn(2300);owner.player.x=savedX;this.assignIds();
@@ -49,7 +53,7 @@ export class FullWorld {
    // A hit/pull penalty moves the common pursuer forward, with bounded corrections.
    const penalty=oldGap-this.chaser.gap;
    if(penalty>0&&!frozen&&!openingGrace){
-    const ramp=Math.min(1,Math.max(0,(this.time-6)/3));
+    const ramp=Math.min(1,Math.max(0,(this.time-graceEnd)/3));
     this.chaser.x+=Math.min(30,penalty)*Math.max(.35,ramp);
    }
   }
@@ -67,7 +71,7 @@ export class FullWorld {
     }else{
     // Fade in the chase over three seconds instead of jumping to full speed
     // at the exact end of the protected opening. This leaves actual time to react.
-    const ramp=Math.min(1,Math.max(0,(this.time-6)/3));
+    const ramp=Math.min(1,Math.max(0,(this.time-graceEnd)/3));
     k.x+=Math.max(0,speed)*dt*scale*ramp;
    }
    const trail=trailing.trail;while(trail.length>2&&trail[1].x<k.x)trail.shift();
@@ -95,7 +99,7 @@ export class FullWorld {
  }
  snapshot(){
   const keys=['player','power','score','count','combo','maxCombo','hits','missed','distance','cleared','shield','grace','currentSpeed','celebration','popups','bubbles'];
-  return copy({protocol:PROTOCOL,tick:this.tick,time:this.time,difficulty:this.difficulty,mapIndex:this.games[0].mapIndex,outcome:this.outcome,chaser:this.chaser,boss:this.boss,obstacles:this.obstacles,foods:this.foods,enemies:this.enemies,players:this.games.map(g=>({id:g.id,name:g.wallet.name,hero:g.wallet.selected,gear:g.gear,run:g.input.running,lift:g.input.lifting,...Object.fromEntries(keys.map(k=>[k,g[k]])),combat:{...g.combat,enemies:undefined},reward:{food:g.wallet.food,xp:g.wallet.xp,best:g.wallet.best}}))});
+  return copy({protocol:PROTOCOL,tick:this.tick,time:this.time,startDelay:this.startDelay,difficulty:this.difficulty,mapIndex:this.games[0].mapIndex,outcome:this.outcome,chaser:this.chaser,boss:this.boss,obstacles:this.obstacles,foods:this.foods,enemies:this.enemies,players:this.games.map(g=>({id:g.id,name:g.wallet.name,hero:g.wallet.selected,gear:g.gear,run:g.input.running,lift:g.input.lifting,...Object.fromEntries(keys.map(k=>[k,g[k]])),combat:{...g.combat,enemies:undefined},reward:{food:g.wallet.food,xp:g.wallet.xp,best:g.wallet.best}}))});
  }
 }
 export const CATALOG=(()=>{const e=engine(1);return {heroes:Object.keys(e.HEROES),gear:e.GEAR,difficulties:Object.keys(e.DIFFICULTIES)};})();
