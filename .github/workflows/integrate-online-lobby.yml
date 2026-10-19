@@ -1,0 +1,36 @@
+name: Integrate online choice into original lobby
+on:
+  push:
+    paths:
+      - ".github/workflows/integrate-online-lobby.yml"
+      - "kozin-online/patch-online-lobby.py"
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  safe-lobby-patch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - name: Guarded minimal original lobby patch
+        run: python3 kozin-online/patch-online-lobby.py
+      - name: Validate patch and only index.html changes
+        shell: bash
+        run: |
+          set -e
+          git diff --check
+          test "$(git diff --name-only)" = 'index.html'
+          grep -F "dom('lobbyOnline').onclick" index.html
+          grep -F "button('lobbyOnline'" index.html
+      - name: Commit online menu button without touching saved progress
+        shell: bash
+        run: |
+          set -e
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          git diff --cached --quiet || git commit -m "Add online option to Kozin original game lobby"
+          git push origin HEAD:main
