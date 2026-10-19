@@ -61,16 +61,16 @@ export function attachFullOnline(server,{route=true}={}){
  let previous=performance.now(),acc=0;
  const loop=setInterval(()=>{
   const now=performance.now();acc+=Math.min(.1,(now-previous)/1000);previous=now;
-  while(acc>=1/60){for(const r of rooms.values()){
+  while(acc>=1/120){for(const r of rooms.values()){
    if(Date.now()-r.created>3600000){closeRoom(r,'החדר פג תוקף');continue;}
    if(r.players.some(p=>(!p.ws||p.away)&&Date.now()>p.deadline)){closeRoom(r,'החיבור לא חודש בתוך דקה. ההתקדמות שכבר התקבלה נשמרה.');continue;}
    if(r.status!=='running'||r.players.length!==2||r.players.some(p=>!p.ws||p.away))continue;
    for(const p of r.players)if(Date.now()-p.lastInput>500)r.world.input(p.id,{run:false,lift:false});
-   try{r.world.step();if(r.world.tick%3===0||r.world.outcome)emit(r,snap(r));if(r.world.outcome){r.status='finished';emit(r,state(r));}}catch(e){console.error('FULL_WORLD_ERROR',e.stack);closeRoom(r,'שגיאה בשרת. אפשר לפתוח חדר חדש.');}
-  }acc-=1/60;}
+   try{r.world.step(1/120);if(r.world.tick%6===0||r.world.outcome)emit(r,snap(r));if(r.world.outcome){r.status='finished';emit(r,state(r));}}catch(e){console.error('FULL_WORLD_ERROR',e.stack);closeRoom(r,'שגיאה בשרת. אפשר לפתוח חדר חדש.');}
+  }acc-=1/120;}
  },1000/60);loop.unref();
  const heartbeat=setInterval(()=>{for(const ws of wss.clients){if(!ws.alive)ws.terminate();else{ws.alive=false;ws.ping();}}},10000);heartbeat.unref();
  if(route)server.on('upgrade',(req,socket,head)=>{if(req.url?.split('?')[0]==='/full-v3')wss.handleUpgrade(req,socket,head,ws=>wss.emit('connection',ws,req));else socket.destroy();});
- const health=()=>({ok:true,protocol:PROTOCOL,rooms:rooms.size,tickHz:60,snapshotHz:20});
+ const health=()=>({ok:true,protocol:PROTOCOL,rooms:rooms.size,tickHz:120,snapshotHz:20});
  return {wss,rooms,health,close(){clearInterval(loop);clearInterval(heartbeat);for(const r of rooms.values())closeRoom(r,'השרת מופעל מחדש');for(const ws of wss.clients)ws.close(1012,'Server restart');wss.close();}};
 }
