@@ -16,7 +16,7 @@ const makeCode = () => { let c; do { c = String(randomInt(1000000)).padStart(6, 
 const roomInfo = r => ({ type: 'room', code: r.code, status: r.status, players: r.players.map(p => ({ id: p.id, name: p.name, hero: p.hero, ready: p.ready })) });
 function start(r) {
   r.status = 'running'; r.tick = 0; r.chaser = { x: 50 }; r.obstacles = []; r.nextObstacle = 740;
-  r.players.forEach((p, i) => { p.x = 310 + i * 36; p.y = 0; p.vy = 0; p.jumps = 0; p.dead = false; p.ready = false; p.running = false; });
+  r.players.forEach((p, i) => { p.x = 310 + i * 36; p.y = 0; p.vy = 0; p.jumps = 0; p.dead = false; p.ready = false; p.running = false; p.stunnedUntil = 0; p.nextAction = 0; p.action = ''; p.actionUntil = 0; });
   broadcast(r, { type: 'started', code: r.code });
 }
 function finish(r, reason, deadIds) {
@@ -33,7 +33,7 @@ function simulate(r) {
   for (const p of r.players) {
     if (p.dead) continue;
     const oldX = p.x;
-    if (p.running) p.x += SPEED * DT;
+    if (p.running && Date.now() >= (p.stunnedUntil || 0)) p.x += SPEED * DT;
     p.vy -= GRAVITY * DT;
     p.y = Math.max(0, p.y + p.vy * DT);
     if (p.y === 0) { p.vy = 0; p.jumps = 0; }
@@ -54,7 +54,7 @@ function simulate(r) {
   if (dead.length) { finish(r, dead.length === 2 ? 'simultaneous' : 'caught', dead); return; }
   if (r.tick % 2 === 0) broadcast(r, {
     type: 'snapshot', tick: r.tick,
-    players: r.players.map(p => ({ id: p.id, x: Math.round(p.x * 10) / 10, y: Math.round(p.y * 10) / 10, name: p.name, hero: p.hero })),
+    players: r.players.map(p => ({ id: p.id, x: Math.round(p.x * 10) / 10, y: Math.round(p.y * 10) / 10, name: p.name, hero: p.hero, action: Date.now() < (p.actionUntil || 0) ? p.action : '', stunned: Date.now() < (p.stunnedUntil || 0) })),
     chaser: r.chaser, obstacles: r.obstacles
   });
 }
@@ -99,7 +99,17 @@ wss.on('connection', ws => {
     } else if (m.type === 'input' && p && room.status === 'running' && !p.dead) {
       p.running = !!m.run;
     } else if (m.type === 'jump' && p && room.status === 'running' && !p.dead && p.jumps < 2) {
-      p.vy = p.jumps ? 620 : 710; p.jumps++;
+      p.vy = p.jumps ? 620 : 710; p.jumps++; p.action = 'jump'; p.actionUntil = Date.now() + 320;
+    } else if (m.type === 'action' && p && room.status === 'running' && !p.dead) {
+      const action = String(m.action || '');
+      if (!['punch','kick','power'].includes(action)) return;
+      const now = Date.now();
+      if (now < (p.nextAction || 0)) return;
+      p.nextAction = now + (action === 'power' ? 4500 : action === 'kick' ? 720 : 460);
+      p.action = action; p.actionUntil = now + 340;
+      const target = room.players.find(other => other !== p && !other.dead && Math.abs(other.x - p.x) <= (action === 'power' ? 140 : 58) && Math.abs(other.y - p.y) < 90);
+      if (target) { target.stunnedUntil = Math.max(target.stunnedUntil || 0, now + (action === 'power' ? 1000 : action === 'kick' ? 500 : 320)); }
+      broadcast(room, { type:'combat', attackerId:p.id, targetId:target?.id || null, action, hero:p.hero, tick:room.tick });
     } else if (m.type === 'rematch' && p && room.status === 'finished') {
       room.status = 'waiting'; room.players.forEach(p => p.ready = false); broadcast(room, roomInfo(room));
     }
