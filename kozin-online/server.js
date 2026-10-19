@@ -6,7 +6,7 @@ import { WebSocketServer, WebSocket } from 'ws';
 const PORT = Number(process.env.PORT || 8080);
 const origins = (process.env.ALLOWED_ORIGINS || '').split(',').map(s => s.trim()).filter(Boolean);
 const rooms = new Map();
-const HEROES = new Set(['luzo', 'tzippy', 'michael', 'moreno', 'eyal']);
+const HEROES = new Set(["luzo","yona","yishai","eyal","hashi","tzippy","michael","moreno"]);
 const DT = 1 / 30, SPEED = 265, GRAVITY = 1750;
 const send = (ws, payload) => { if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify(payload)); };
 const broadcast = (room, payload) => { for (const p of room.players) send(p.ws, payload); };
