@@ -72,7 +72,23 @@ function action(r,p,type){
 }
 function advance(r){
  if(r.status!=='running'||r.players.length!==2)return;
- r.tick++;const now=Date.now();
+ const now=Date.now();
+ // Pause the entire shared simulation when a player loses connectivity.
+ // Otherwise the frozen character gets killed before the 60-second reconnect.
+ const missing=r.players.filter(p=>!p.ws);
+ if(missing.length){
+  const expired=missing.filter(p=>now>p.graceUntil);
+  if(expired.length)finish(r,'disconnect',expired.map(p=>p.id));
+  else r.pausedAt??=now;
+  return;
+ }
+ if(r.pausedAt){
+  const delta=now-r.pausedAt;
+  r.chaser.frozenUntil+=delta;r.chaser.slowUntil+=delta;
+  r.players.forEach(p=>{p.powerUntil+=delta;p.nextPower+=delta;p.nextAction+=delta;p.actionUntil+=delta;p.stunUntil+=delta;});
+  r.pausedAt=0;
+ }
+ r.tick++;
  for(const p of r.players){
   if(!p.ws){if(now>p.graceUntil){finish(r,'disconnect',[p.id]);return;}continue;}
   if(p.dead)continue;
