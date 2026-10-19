@@ -228,13 +228,13 @@ function patchRenderer(){
   const targetX=g.player.x+speed*age;
   const predY=((g.player.jumps||0)>0||g.player.y>0)?Math.max(0,g.player.y+(g.player.vy||0)*age-775*age*age):g.player.y;
   let predicted={...g.player,x:targetX,y:predY};
-  if(visualJump&&now-visualJump.at<145&&(!me?.player?.jumps||me.player.jumps===visualJump.jumps)){
+  if(visualJump&&now-visualJump.at<320&&(me?.player?.jumps||0)<visualJump.predictedJumps){
    const t=(now-visualJump.at)/1000;
    predicted.y=Math.max(predicted.y,visualJump.y+visualJump.vy*t-775*t*t);
    predicted.vy=visualJump.vy-1550*t;
-   predicted.jumps=Math.min(2,visualJump.jumps+1);
+   predicted.jumps=visualJump.predictedJumps;
   }
-  if(visualJump&&now-visualJump.at>170)visualJump=null;
+  if(visualJump&&(now-visualJump.at>350||(me?.player?.jumps||0)>=visualJump.predictedJumps))visualJump=null;
   // Keep the displayed player moving at frame rate, then reconcile gradually
   // to authoritative collision and physics snapshots; never mutate the server state.
   const k=1-Math.exp(-22*dt);
@@ -293,7 +293,7 @@ function sendInput(force){if(!running||!session||!frame)return;const now=Date.no
 setInterval(()=>sendInput(false),50);
 function hold(v){if(held===v)return;held=v;sendInput(true)}
 const run=$('runBtn');run.addEventListener('pointerdown',e=>{e.preventDefault();run.setPointerCapture(e.pointerId);hold(true)});['pointerup','pointercancel','lostpointercapture'].forEach(t=>run.addEventListener(t,e=>{e.preventDefault();hold(false)}));
-const act=t=>{if(!running)return;if(t==='jump'&&frame?.game){const p=frame.game.player;visualJump={at:performance.now(),y:p.y||0,vy:p.jumps>0?610:620,jumps:p.jumps||0};}send({type:'action',action:t})};
+const act=t=>{if(!running)return;if(t==='jump'&&frame?.game){const p=frame.game.player;const now=performance.now();const pending=visualJump&&now-visualJump.at<320?visualJump.predictedJumps:0;const jumps=Math.max(p.jumps||0,pending);if(jumps<2)visualJump={at:now,y:Math.max(p.y||0,smoothSelf?.y||0),vy:jumps?610:620,predictedJumps:jumps+1};}send({type:'action',action:t})};
 [['jumpBtn','jump'],['punchBtn','punch'],['kickBtn','kick'],['powerBtn','power']].forEach(([id,a])=>$(id).addEventListener('pointerdown',e=>{e.preventDefault();act(a)}));
 addEventListener('keydown',e=>{if(/INPUT|SELECT|TEXTAREA/.test(document.activeElement?.tagName||''))return;if(['ArrowRight','KeyD'].includes(e.code)){e.preventDefault();hold(true)}if(!e.repeat&&['Space','ArrowUp','KeyW'].includes(e.code)){e.preventDefault();act('jump')}if(!e.repeat&&e.code==='KeyS')act('power');if(!e.repeat&&e.code==='KeyK')act('kick');if(!e.repeat&&e.code==='KeyJ')act('punch')});addEventListener('keyup',e=>{if(['ArrowRight','KeyD'].includes(e.code))hold(false)});
 function hidden(v){if(running||room?.status==='running'){hold(false);send({type:'away',away:v});$('pauseChip').style.display=v?'block':'none';}}
