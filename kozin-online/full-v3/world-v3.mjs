@@ -83,7 +83,14 @@ export class FullWorld {
   for(const g of this.games){g.chaser=k;g.boss=this.boss;g.mapIndex=map;g.obstacles=this.obstacles;g.foods=this.foods;g.combat.enemies=this.enemies;}
   k.gap=trailing.player.x-k.x;
   const caught=openingGrace?[]:this.games.filter(g=>g.player.x-k.x<CONFIG.catchGap);
-  if(caught.length||k.energy<=0){this.outcome={win:k.energy<=0,reason:k.energy<=0?'escaped':'caught',caught:caught.map(g=>g.id)};for(const g of this.games)g.finish(this.outcome.win);}
+  if(caught.length||k.energy<=0){
+   const escaped=k.energy<=0;
+   const losers=escaped?[]:caught.map(g=>g.id);
+   const winners=escaped?this.games.map(g=>g.id):this.games.filter(g=>!losers.includes(g.id)).map(g=>g.id);
+   const perPlayer=Object.fromEntries(this.games.map(g=>[g.id,losers.includes(g.id)?'lost':'won']));
+   this.outcome={win:escaped,reason:escaped?'escaped':'caught',caught:losers,winners,losers,perPlayer};
+   for(const g of this.games)g.finish(perPlayer[g.id]==='won');
+  }
   for(const g of this.games)g.events=[];
  }
  snapshot(){
