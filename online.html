@@ -44,19 +44,23 @@ a{color:#ffe5a5}
 <a href="./index.html">חזרה למשחק הרגיל</a>
 </section></div>
 <div id="actions"><button data-action="punch">אגרוף 👊</button><button data-action="kick">בעיטה 🦵</button><button data-action="power">כוח ✨</button></div><div id="controls"><button id="run">רוץ ▶</button><button id="jump">קפיצה ⤒</button></div>
+<script src="/kozin-online/art.js"></script>
 <script>
 (()=>{'use strict';
 const SERVER='wss://kozin-online-server.onrender.com';
 const $=id=>document.getElementById(id),canvas=$('game'),ctx=canvas.getContext('2d');
-let combatText='',combatUntil=0;let ws=null,myId='',roomCode='',roomPlayers=[],isReady=false,running=false,snapshot=null,held=false,last=performance.now(),camera=0;
+const POWERNAMES={luzo:'סמוחטה',yona:'כנפיים',yishai:'תספורת',eyal:'מונית',hashi:'עולם מחייך',tzippy:'טרמפ',michael:'קוד קארה',moreno:'זה לא מורנו!'};
+let combatText='',combatUntil=0,reconnectAttempts=0,resumeToken='',lastDisconnect=0;let ws=null,myId='',roomCode='',roomPlayers=[],isReady=false,running=false,snapshot=null,held=false,last=performance.now(),camera=0;
 const params=new URLSearchParams(location.search);
 if(params.has('room'))$('code').value=(params.get('room')||'').replace(/\D/g,'').slice(0,6);
 const HERO_COLORS={luzo:'#222b32',yona:'#91bfff',yishai:'#dcb0db',eyal:'#e9a75a',hashi:'#9ec881',tzippy:'#cc87a3',michael:'#e87c6e',moreno:'#a493f0'};
+let ownGear={};
+try{const inventory=JSON.parse(localStorage.getItem('kozin-wardrobe-v3')||'null');if(inventory&&inventory.equipped&&Array.isArray(inventory.owned)){for(const [slot,id] of Object.entries(inventory.equipped)){if(inventory.owned.includes(id))ownGear[slot]=id;}}}catch{}
 try{const profile=JSON.parse(localStorage.getItem('kuzin-local-v2')||'null');if(profile){$('name').value=String(profile.name||'שחקן').slice(0,20);const owned=new Set(['luzo',...(Array.isArray(profile.owned)?profile.owned:[])]);for(const option of $('hero').options){option.disabled=!owned.has(option.value);if(option.disabled)option.textContent+=' 🔒';}if(Object.hasOwn(HERO_COLORS,profile.selected)&&owned.has(profile.selected))$('hero').value=profile.selected;}}catch{}
 
 function setStatus(s){$('status').textContent=s}
 function send(m){if(ws?.readyState===WebSocket.OPEN)ws.send(JSON.stringify(m))}
-function showMenu(show){$('menu').style.display=show?'grid':'none';$('controls').style.display=show?'none':'flex';$('actions').style.display=show?'none':'flex'}
+function showMenu(show){$('menu').style.display=show?'grid':'none';$('controls').style.display=show?'none':'flex';$('actions').style.display=show?'none':'flex';if(!show)window.KozinOriginalArt?.load();}
 let onConnected=null;
 function connect(after){
  if(ws?.readyState===WebSocket.OPEN){after();return}
@@ -64,12 +68,21 @@ function connect(after){
  setStatus('מתחבר לשרת האונליין…');$('state').textContent='מתחבר…';
  onConnected=after;
  try{ws=new WebSocket(SERVER)}catch{setStatus('לא ניתן לפתוח את החיבור');return}
- ws.onopen=()=>{setStatus('מחובר לשרת');$('state').textContent='מחובר';const fn=onConnected;onConnected=null;fn?.()}
+ ws.onopen=()=>{reconnectAttempts=0;setStatus('מחובר לשרת');$('state').textContent='מחובר';const fn=onConnected;onConnected=null;fn?.()}
  ws.onerror=()=>setStatus('שגיאת חיבור. אפשר לנסות שוב')
- ws.onclose=()=>{running=false;held=false;showMenu(true);$('state').textContent='מנותק';setStatus('החיבור נותק. צור חדר חדש או הצטרף שוב');$('roomCode').textContent='';$('share').style.display='none';$('ready').style.display='none';roomCode='';roomPlayers=[];myId='';};
+ ws.onclose=()=>{
+ running=false;held=false;showMenu(true);$('state').textContent='מנותק';
+ const saved=(()=>{try{return JSON.parse(sessionStorage.getItem('kozin-online-resume')||'null')}catch{return null}})();
+ if(saved?.code&&saved?.token&&reconnectAttempts++<5){
+   setStatus('מנסה להתחבר מחדש לחדר '+saved.code+'…');lastDisconnect=Date.now();
+   setTimeout(()=>connect(()=>send({type:'resume',code:saved.code,id:saved.id,token:saved.token})),Math.min(reconnectAttempts*2200,8000));
+ }else{
+   setStatus('החיבור נותק. אפשר ליצור חדר חדש');sessionStorage.removeItem('kozin-online-resume');roomCode='';roomPlayers=[];myId='';
+ }
+};
  ws.onmessage=e=>{let d;try{d=JSON.parse(e.data)}catch{return}
-  if(d.type==='hello')myId=d.id;
-  else if(d.type==='joined'){roomCode=d.code;$('roomCode').textContent=roomCode;$('code').value=roomCode;$('share').style.display='inline-block';$('ready').style.display='inline-block';setStatus('החדר נפתח, מזמינים חבר וממתינים');}
+  if(d.type==='hello'){/* ID assigned when joining; server hello is only protocol version. */}
+  else if(d.type==='joined'){myId=d.id;roomCode=d.code;resumeToken=d.resumeToken||'';try{sessionStorage.setItem('kozin-online-resume',JSON.stringify({id:myId,code:roomCode,token:resumeToken}));}catch{}$('roomCode').textContent=roomCode;$('code').value=roomCode;$('share').style.display='inline-block';$('ready').style.display='inline-block';setStatus('החדר נפתח, מזמינים חבר וממתינים');}
   else if(d.type==='room'){
    roomPlayers=d.players;
    $('players').textContent=d.players.map(p=>p.name+(p.ready?' ✓':'')).join(' נגד ');
@@ -80,22 +93,24 @@ function connect(after){
     $('ready').textContent=isReady?'ממתין ליריב…':'אני מוכן';
    }
   }
-  else if(d.type==='started'){running=true;held=false;snapshot=null;camera=0;showMenu(false);$('state').textContent='מרדף פעיל';}
-  else if(d.type==='snapshot'){snapshot=d;const me=d.players.find(p=>p.id===myId);$('distance').textContent=Math.max(0,Math.round(((me?.x??0)-310)/10))+' מ׳';}
-  else if(d.type==='combat'){combatText=(d.action==='power'?'כוח מיוחד':d.action==='kick'?'בעיטה':'אגרוף')+(d.targetId?' · פגיעה!':'');combatUntil=performance.now()+750;}
+  else if(d.type==='started'){running=true;held=false;snapshot=null;camera=0;showMenu(false);$('state').textContent='מרדף משותף';}
+  else if(d.type==='snapshot'){snapshot=d;const me=d.players.find(p=>p.id===myId);$('distance').textContent=Math.max(0,Math.round(((me?.x??0)-310)/10))+' מ׳ · '+(me?.food||0)+' אוכל';$('state').textContent=d.mapName||'מודיעין';if(me){const button=$('actions').querySelector('[data-action=power]');const remaining=Math.max(0,Math.ceil(((me.nextPower||0)-(d.serverTime||Date.now()))/1000));button.textContent=(POWERNAMES[me.hero]||'כוח')+(remaining?' '+remaining+'ש׳':' ✨');button.disabled=remaining>0;}}
+  else if(d.type==='combat'){combatText=(d.action==='power'?(POWERNAMES[d.hero]||'כוח מיוחד'):d.action==='kick'?'בעיטה':'אגרוף')+(d.hit?' · המכשול הוסר!':'');combatUntil=performance.now()+1000;}
+  else if(d.type==='peer-disconnected'){setStatus('החבר התנתק, ממתינים לחיבור מחדש עד דקה');}
   else if(d.type==='result'){
    running=false;held=false;showMenu(true);
    const winner=roomPlayers.find(p=>p.id===d.winnerId);
-   setStatus(winner?'המנצח: '+winner.name+'!':'תיקו!');
+   setStatus(d.reason==='escaped'?'כל הכבוד! ברחתם יחד מקוזין!':winner?'השחקן שנותר: '+winner.name:d.reason==='disconnect'?'החבר נותק':'סיימתם את המרוץ');
    $('ready').style.display='none';$('rematch').style.display='inline-block';
   }
-  else if(d.type==='error')setStatus(d.message||'שגיאה בחיבור');
+  else if(d.type==='error'){if(String(d.message).includes('חדר')&&resumeToken){sessionStorage.removeItem('kozin-online-resume');resumeToken='';}setStatus(d.message||'שגיאה בחיבור');}
  }
 }
-$('create').onclick=()=>connect(()=>send({type:'create',name:$('name').value,hero:$('hero').value}));
+$('create').onclick=()=>connect(()=>send({type:'create',name:$('name').value,hero:$('hero').value,gear:ownGear}));
 $('join').onclick=()=>{const code=$('code').value.trim();if(!/^\d{6}$/.test(code)){setStatus('צריך להכניס קוד חדר בן 6 ספרות');return}connect(()=>send({type:'join',code,name:$('name').value,hero:$('hero').value}))};
 $('ready').onclick=()=>{isReady=!isReady;send({type:'ready',ready:isReady});$('ready').textContent=isReady?'ממתין ליריב…':'אני מוכן'};
 $('rematch').onclick=()=>{send({type:'rematch'});$('rematch').style.display='none'};
+try{const remembered=JSON.parse(sessionStorage.getItem('kozin-online-resume')||'null');if(remembered?.code&&remembered?.token){setTimeout(()=>connect(()=>send({type:'resume',code:remembered.code,id:remembered.id,token:remembered.token})),500);}}catch{}
 $('share').onclick=async()=>{const url=new URL(location.href);url.searchParams.set('room',roomCode);try{await navigator.clipboard.writeText(url.toString());setStatus('קישור ההזמנה הועתק')}catch{setStatus('הקישור: '+url)}};
 const run=$('run'),jump=$('jump');
 function hold(value){if(held===value)return;held=value;send({type:'input',run:value})}
@@ -112,29 +127,44 @@ addEventListener('resize',resize);resize();
 function draw(now){
  requestAnimationFrame(draw);
  const dt=Math.min(.05,(now-last)/1000);last=now;const w=innerWidth,h=innerHeight,g=h*.78;
- const grad=ctx.createLinearGradient(0,0,0,h);grad.addColorStop(0,'#123855');grad.addColorStop(1,'#c89e75');ctx.fillStyle=grad;ctx.fillRect(0,0,w,h);
+ const art=window.KozinOriginalArt;
+ const artBg=art?.state?.ready&&art.backdrop(ctx,snapshot?.mapIndex||0,w,g);
+ if(!artBg){const grad=ctx.createLinearGradient(0,0,0,h);grad.addColorStop(0,'#123855');grad.addColorStop(1,'#c89e75');ctx.fillStyle=grad;ctx.fillRect(0,0,w,h);
  const own=snapshot?.players?.find(p=>p.id===myId);
  if(own)camera+=(own.x-w*.4-camera)*Math.min(1,dt*9);
  for(let i=Math.floor(camera/190)-1;i<=Math.floor((camera+w)/190)+1;i++){
   const x=i*190-camera;ctx.fillStyle='#596b78';ctx.fillRect(x,g-255,155,250);
   ctx.fillStyle='#e0ad70';for(let r=0;r<4;r++)for(let c=0;c<3;c++)ctx.fillRect(x+14+c*47,g-220+r*50,25,30);
  }
+ }
  ctx.fillStyle='#2a343c';ctx.fillRect(0,g,w,h-g);
  ctx.fillStyle='#e2b96a';ctx.fillRect(0,g,w,5);
  ctx.fillStyle='#efcf99';for(let x=-((camera%120+120)%120);x<w;x+=120)ctx.fillRect(x,g+45,54,4);
  if(snapshot){
-  for(const o of snapshot.obstacles){const x=o.x-camera;ctx.fillStyle='#815f3f';ctx.fillRect(x,g-o.h,o.w,o.h);ctx.lineWidth=3;ctx.strokeStyle='#f1cd7d';ctx.strokeRect(x,g-o.h,o.w,o.h)}
+  for(const o of snapshot.obstacles){
+   const x=o.x-camera;if(x<-130||x>w+130)continue;
+   if(o.kind==='platform'){ctx.fillStyle='#cbb987';ctx.fillRect(x,g-o.h,o.w,10);ctx.fillStyle='#5f6c65';ctx.fillRect(x+6,g-o.h+10,o.w-12,7);continue;}
+   ctx.fillStyle=['courier','scooter','drone'].includes(o.kind)?'#4c747a':'#815f3f';
+   ctx.fillRect(x,g-o.h,o.w,o.h);ctx.strokeStyle='#f1cd7d';ctx.lineWidth=2;ctx.strokeRect(x,g-o.h,o.w,o.h);
+ }
+ for(const f of snapshot.foods||[]){const x=f.x-camera;if(x<-40||x>w+40)continue;ctx.textAlign='center';ctx.font='25px Arial';ctx.fillText(({pizza:'🍕',burger:'🍔',icecream:'🍦',shawarma:'🥙',donut:'🍩',fries:'🍟'})[f.type]||'🍔',x,g-f.y-4);}
+ if(snapshot.routeName){ctx.fillStyle='#ffe6ac';ctx.font='bold 13px Arial';ctx.textAlign='center';ctx.fillText('פארקור · '+snapshot.routeName,w/2,65);}
+
   const k=snapshot.chaser.x-camera;
+  if(!(art?.state?.ready&&art.chaser(ctx,k,g,98,snapshot.tick/5))){
   ctx.fillStyle='#ecc095';ctx.beginPath();ctx.ellipse(k,g-45,26,38,0,0,2*Math.PI);ctx.fill();
   ctx.fillStyle='#4d2b1c';ctx.beginPath();ctx.arc(k,g-92,22,0,2*Math.PI);ctx.fill();
+ }
   ctx.font='bold 13px Arial';ctx.textAlign='center';ctx.fillStyle='#fff0cb';ctx.fillText('קוזין',k,g-121);
   for(const p of snapshot.players){
    const x=p.x-camera,y=g-p.y,mine=p.id===myId;
    if(p.action==='punch'||p.action==='kick'){ctx.save();ctx.fillStyle='#ffd96a';ctx.beginPath();ctx.arc(x+23,y-45,p.action==='kick'?19:12,0,2*Math.PI);ctx.fill();ctx.restore();}
    if(p.stunned){ctx.fillStyle='#8cd8ff';ctx.font='bold 13px Arial';ctx.fillText('קפוא',x,y-123);}
-   ctx.fillStyle=HERO_COLORS[p.hero]||'#66d8fa';ctx.fillRect(x-13,y-59,26,38);
-   ctx.fillStyle='#edbd91';ctx.beginPath();ctx.arc(x,y-70,16,0,2*Math.PI);ctx.fill();
-   ctx.fillStyle=HERO_COLORS[p.hero]||'#66d8fa';ctx.fillRect(x-12,y-22,10,22);ctx.fillRect(x+3,y-22,10,22);
+   if(!(art?.state?.ready&&art.player(ctx,p,x,y,91))){
+    ctx.fillStyle=HERO_COLORS[p.hero]||'#66d8fa';ctx.fillRect(x-13,y-59,26,38);
+    ctx.fillStyle='#edbd91';ctx.beginPath();ctx.arc(x,y-70,16,0,2*Math.PI);ctx.fill();
+    ctx.fillStyle=HERO_COLORS[p.hero]||'#66d8fa';ctx.fillRect(x-12,y-22,10,22);ctx.fillRect(x+3,y-22,10,22);
+   }
    ctx.fillStyle='#fff7e0';ctx.font='bold 14px Arial';ctx.fillText(p.name,x,y-101);
   }
    if(performance.now()<combatUntil){ctx.fillStyle='#ffe69b';ctx.font='bold 22px Arial';ctx.fillText(combatText,w/2,h*.22)}
