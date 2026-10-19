@@ -1,4 +1,5 @@
 import http from 'node:http';
+import { readFile } from 'node:fs/promises';
 import { randomBytes, randomInt } from 'node:crypto';
 import { WebSocketServer, WebSocket } from 'ws';
 import { MAPS, OBSTACLES, ROUTES, POWERS, safeGear } from './world.mjs';
@@ -132,7 +133,51 @@ function advance(r){
   chaser:r.chaser,obstacles:r.obstacles,foods:r.foods,mapIndex:Math.floor(Math.max(0,minX-310)/1600)%MAPS.length,mapName:MAPS[Math.floor(Math.max(0,minX-310)/1600)%MAPS.length],routeName:r.routeName
  });
 }
+
+const ART_GROUPS=new Set(['ASSET_URLS','HERO_ART','WARDROBE_ART','DROP2_ART','EXPANSION_ART']);
+const ART_IDS=/^[a-z0-9_]{1,40}$/;
+let sourcePromise=null;
+const groups=new Map(),imagesCache=new Map();
+async function getArt(group,id){
+ if(!ART_GROUPS.has(group)||!ART_IDS.test(id))return null;
+ if(!sourcePromise)sourcePromise=readFile(new URL('../index.html',import.meta.url),'utf8');
+ const source=await sourcePromise;
+ let images=groups.get(group);
+ if(!images){
+  const search='const '+group,anchor=source.indexOf(search);
+  if(anchor<0)return null;
+  const eq=source.indexOf('=',anchor+search.length),start=source.indexOf('{',eq),end=source.indexOf('};',start);
+  if(eq<0||start<0||end<0)return null;
+  images=JSON.parse(source.slice(start,end+1));
+  groups.set(group,images);
+ }
+ const value=images[id];
+ if(typeof value!=='string'||!value.startsWith('data:image/'))return null;
+ const match=/^data:(image\/(?:webp|png|jpeg));base64,([A-Za-z0-9+/=]+)$/.exec(value);
+ if(!match)return null;
+ const key=group+'/'+id;
+ let bytes=imagesCache.get(key);
+ if(!bytes){
+  bytes=Buffer.from(match[2],'base64');
+  if(bytes.length>8*1024*1024)return null;
+  if(imagesCache.size>=18)imagesCache.delete(imagesCache.keys().next().value);
+  imagesCache.set(key,bytes);
+ }
+ return {bytes,type:match[1]};
+}
+
 const httpServer=http.createServer((req,res)=>{
+ if(req.url?.startsWith('/assets/')){
+  const part=/^\/assets\/([A-Z_]+)\/([a-z0-9_]+)$/.exec(req.url.split('?')[0]);
+  if(!part){res.writeHead(404);res.end('Not found');return;}
+  getArt(part[1],part[2]).then(asset=>{
+   if(!asset){res.writeHead(404,{'Cache-Control':'no-store'});res.end('Image not found');return;}
+   res.writeHead(200,{'Content-Type':asset.type,'Content-Length':asset.bytes.length,'Cache-Control':'public, max-age=86400','Access-Control-Allow-Origin':'*','Cross-Origin-Resource-Policy':'cross-origin','X-Content-Type-Options':'nosniff'});
+   res.end(asset.bytes);
+  }).catch(e=>{console.error('Art unavailable',e.message);if(!res.headersSent)res.writeHead(503);res.end('Art unavailable');});
+  return;
+ }
+
  if(req.url==='/health'){res.writeHead(200,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'});res.end(JSON.stringify({ok:true,rooms:rooms.size,version:2}));return;}
  res.writeHead(404,{'Content-Type':'text/plain'});res.end('Not found');
 });
