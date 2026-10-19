@@ -152,6 +152,7 @@ function patchRenderer(){
   const localSpeed=held&&!g.player.blocked?Math.max(0,Number(g.profile?.speed)||425):0;
   const speed=held?(me?.run?serverSpeed:localSpeed):0;
   const predicted={...g.player,x:g.player.x+Math.min(900,Math.max(-220,speed))*age};
+  if((g.player.jumps||0)===0)predicted.phase=(g.player.phase||0)+Math.max(0,predicted.x-g.player.x)/30;
   if((g.player.jumps||0)>0||g.player.y>0)predicted.y=Math.max(0,g.player.y+(g.player.vy||0)*age-775*age*age);
   if(visualJump&&now-visualJump.at<110&&(!me?.player?.jumps||me.player.jumps===visualJump.jumps)){
    const t=(now-visualJump.at)/1000;
@@ -164,7 +165,13 @@ function patchRenderer(){
   const k=1-Math.exp(-32*dt);
   smoothSelf=interp(smoothSelf,predicted,k);
   smoothChaser=interp(smoothChaser,g.chaser,k);
-  smoothRemote=remote?.player?interp(smoothRemote,remote.player,k):null;
+  let remoteTarget=remote?.player||null;
+  if(remoteTarget){
+   const vx=Number(remote.currentSpeed)||0;
+   const rx=(remote.run&&vx>0)?remoteTarget.x+Math.min(900,vx)*age:remoteTarget.x;
+   remoteTarget={...remoteTarget,x:rx,phase:(remoteTarget.phase||0)+Math.max(0,rx-remoteTarget.x)/30};
+  }
+  smoothRemote=remoteTarget?interp(smoothRemote,remoteTarget,k):null;
   frameCount++;frameSum+=dt;
   if(!frameSampleAt)frameSampleAt=now;
   if(now-frameSampleAt>2500){
@@ -214,6 +221,9 @@ async function setupFrame(){let attempt=0;while(attempt++<110){try{const f=$('or
 // Read cosmetics from the original game, but never write an online round to its save.
 bridge.game.wallet.save=()=>{};bridge.game.wallet.flush=async()=>{};bridge.game.wallet.record=()=>{};
 frame=bridge;appReady=true;
+// The regular game animates its lobby previews on every animation frame. They are
+// invisible in online mode and waste CPU/GPU time beside multiplayer drawing.
+if(typeof bridge.wardrobe.animatePreview==='function')bridge.wardrobe.animatePreview=()=>{};
 // Online-only pixel cap: the original 4K canvas can stall desktop browsers when running inside an iframe.
 const baseResize=bridge.renderer.resize;bridge.renderer.maxPixelBudget=1350000;bridge.renderer.resize=function(...args){baseResize.apply(this,args);const pixels=this.canvas.width*this.canvas.height;if(pixels>this.maxPixelBudget){const scale=Math.sqrt(this.maxPixelBudget/pixels);this.canvas.width=Math.round(this.canvas.width*scale);this.canvas.height=Math.round(this.canvas.height*scale);this.dpr*=scale;}};bridge.renderer.resize();$('splash').style.display='none';$('options').style.display='block';syncAccountProfile();$('difficulty').value=bridge.game.difficulty||'normal';const css=f.document.createElement('style');css.textContent='#overlay,#hud,#subhud,#controls,#notice,#bossStatus{display:none!important}html,body{touch-action:none!important}';f.document.head.appendChild(css);announce('המנוע המקורי נטען. אפשר לפתוח חדר.');if(session?.token&&/^\d{6}$/.test(session.code||'')){startSocket(()=>send({type:'resume',protocol:PROTOCOL,...session}));}return;}}catch(e){if(attempt===110)announce('לא ניתן לטעון את המשחק המקורי: '+e.message)}await new Promise(r=>setTimeout(r,350))}announce('טעינת המשחק נכשלה. בדוק ש־index.html קיים באותו אתר.');}
 setupFrame();
