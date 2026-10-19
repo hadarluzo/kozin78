@@ -33,6 +33,8 @@ jobs:
           node --check /tmp/kozin-online-client.js
       - name: Run original-world multiplayer tests
         run: node kozin-online/full-v3/test.mjs
+      - name: Verify account roster and cross-iframe ownership
+        run: node kozin-online/full-v3/client-test.mjs
       - name: Benchmark live world and network snapshot cost
         run: node kozin-online/full-v3/perf.mjs
       - name: Run real two-client WebSocket smoke test
