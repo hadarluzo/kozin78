@@ -48,4 +48,20 @@ for(const hero of ['michael','moreno']){const w=new FullWorld(profiles(hero),'ha
  assert.equal(w.outcome?.perPlayer?.b,'won','uncaught player wins');
  assert.deepEqual([...w.outcome.winners],['b']);
 }
+{
+ const w=new FullWorld(profiles('luzo','tzippy'),'normal',909,{countdown:true});
+ const firstX=w.games[0].player.x,friendX=w.games[1].player.x;
+ const firstChaser=w.chaser.x;
+ w.input('a',{run:true});w.input('b',{run:true});
+ assert.equal(w.action('a','jump'),false,'jump must be blocked during countdown');
+ assert.equal(w.action('a','power'),false,'powers must be blocked during countdown');
+ for(let n=0;n<300;n++)w.step(1/60);
+ assert.equal(w.games[0].player.x,firstX,'runner cannot move during cinematic intro');
+ assert.equal(w.games[1].player.x,friendX,'other runner cannot move during cinematic intro');
+ assert.equal(w.chaser.x,firstChaser,'chaser must remain frozen until countdown ends');
+ assert.equal(w.snapshot().startDelay,5,'server snapshots expose synchronized countdown duration');
+ for(let n=0;n<3;n++)w.step(1/60);
+ assert(w.games[0].player.x>firstX,'movement must be enabled after countdown');
+ assert(w.games[1].player.x>friendX,'both runners start together');
+}
 assert.equal(CATALOG.gear.length,13);console.log('PASS full engine: 8 heroes, 13 cosmetics, freeze, carry, taxi, shared food, Buddha, independent runners');
