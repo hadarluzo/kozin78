@@ -140,6 +140,17 @@ let sourcePromise=null;
 const groups=new Map(),imagesCache=new Map();
 async function getArt(group,id){
  if(!ART_GROUPS.has(group)||!ART_IDS.test(id))return null;
+ if(group==='DROP2_ART'){
+  const key=group+'/'+id;let bytes=imagesCache.get(key);
+  if(!bytes){
+   try{bytes=await readFile(new URL('./drop2/'+id+'.webp',import.meta.url));}
+   catch(e){if(e.code==='ENOENT')return null;throw e;}
+   if(bytes.length>8*1024*1024)return null;
+   if(imagesCache.size>=18)imagesCache.delete(imagesCache.keys().next().value);
+   imagesCache.set(key,bytes);
+  }
+  return {bytes,type:'image/webp'};
+ }
  if(!sourcePromise)sourcePromise=readFile(new URL('../index.html',import.meta.url),'utf8');
  const source=await sourcePromise;
  let images=groups.get(group);
