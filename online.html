@@ -149,8 +149,12 @@ function showResult(outcome){
  if(!session)return;
  const win=!!outcome.win;
  const caught=(outcome.caught||[]).map(id=>latest?.players?.find(p=>p.id===id)?.name||'אחד השחקנים');
- $('resultTitle').textContent=win?'ניצחתם!':'הפסדתם!';
- $('resultSummary').textContent=win?'הצלחתם לברוח מקוזין יחד!':caught.length?('קוזין תפס את '+caught.join(' ואת ')+'. נסו שוב!'):'קוזין תפס אתכם. נסו שוב!';
+ const mine=outcome.perPlayer?.[session.id] || (win?'won':(outcome.caught||[]).includes(session.id)?'lost':'won');
+ const iWon=mine==='won';$('resultTitle').textContent=iWon?'ניצחת!':'הפסדת!';
+ const opponent=latest?.players?.find(p=>p.id!==session.id);
+ $('resultSummary').textContent=win?'שניכם הצלחתם לברוח מקוזין!':iWon?
+   ('קוזין תפס את '+(caught.join(' ואת ')||'החבר שלך')+'. ניצחת בסיבוב!'):
+   ('קוזין תפס אותך.'+(opponent&&!outcome.caught?.includes(opponent.id)?' '+opponent.name+' ניצח בסיבוב.':'')+' נסה שוב!');
  const me=getOwn(),distance=Math.round(Math.max(0,(me?.player?.x||320)-320)/10);
  $('resultDistance').textContent='התקדמתם '+distance+' מטר · קוזין '+Math.max(0,Math.round(latest?.chaser?.energy||0))+'%';
  $('resultView').style.display='flex';
@@ -181,7 +185,11 @@ function patchRenderer(){
    frame.wardrobe.equipped={...(roomRoster.get(other.id)?.gear||{}),...(other.gear||{})};
    const displayOther=smoothRemote?{...other.player,x:smoothRemote.x,y:smoothRemote.y,phase:smoothRemote.phase}:other.player;
    const proxy={...g,wallet:{...g.wallet,selected:otherHero},player:displayOther,power:{...g.power,...other.power,carrying:other.power?.type==='tzippy'&&(other.power?.remaining||0)>0,flying:!!other.power?.flying},combat:{...g.combat,...other.combat},input:{running:other.run||false},grace:0};
-   this.character(proxy,false);
+   // Distinguish the teammate visually: never fade the local player's sprite.
+   const ctx=this.ctx,oldAlpha=ctx.globalAlpha;
+   ctx.save();
+   try{ctx.globalAlpha=oldAlpha*.56;this.character(proxy,false);}
+   finally{ctx.restore();}
    this.text((other.name||'שחקן')+' · '+heroName(otherHero),displayOther.x-this.camera,this.ground-(displayOther.y||0)-199,16,'#8ef1ff',true);
   }catch(e){if(!this.remoteErrorLogged){console.warn('Kozin remote render error',e);this.remoteErrorLogged=true}}
   finally{frame.wardrobe.equipped=ownGear}
