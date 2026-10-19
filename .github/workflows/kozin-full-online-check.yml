@@ -58,3 +58,19 @@ jobs:
             sleep 2
           done
           node kozin-online/full-v3/live-test.mjs wss://kozin-online-server.onrender.com/full-v3
+
+      - name: Verify live server physics rate and active deployment
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 45); do
+            health="$(curl -sSfL --max-time 8 https://kozin-online-server.onrender.com/full-v3/health || true)"
+            if [[ "$health" == *'"tickHz":60'* && "$health" == *'"snapshotHz":20'* ]]; then
+              echo "PASS live Render version: $health"
+              exit 0
+            fi
+            echo "Waiting for production server update: attempt $attempt"
+            sleep 3
+          done
+          echo "Render did not deploy the verified 60 Hz multiplayer server."
+          exit 1
