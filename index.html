@@ -248,7 +248,7 @@ body.home #panel:has(#premiumLobby){padding:0!important;margin:0!important;max-w
 .prem-map-card b{font-size:clamp(12px,2.4dvh,25px);text-shadow:0 2px 6px #000;}
 .prem-map-card small{font-size:clamp(10px,1.55dvh,16px);color:#eff1f5;}
 .prem-map-card:hover{border-color:#ffeaa7;filter:brightness(1.12)}
-.prem-bottom{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:clamp(7px,1vw,20px);padding:clamp(5px,1.2dvh,14px) clamp(10px,2vw,34px) clamp(8px,1.8dvh,20px);z-index:3;min-height:0;}
+.prem-bottom{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:clamp(7px,1vw,20px);padding:clamp(5px,1.2dvh,14px) clamp(10px,2vw,34px) clamp(8px,1.8dvh,20px);z-index:3;min-height:0;}
 .prem-nav{display:flex;align-items:center;justify-content:space-between;gap:.6vw;padding:clamp(4px,1.1dvh,10px) clamp(8px,1.8vw,24px);border:1px solid #92c8ee;border-radius:13px;background:linear-gradient(155deg,#133a55f5,#061423f3);color:white;min-width:0;box-shadow:inset 0 1px #badfff35,0 4px 14px #000b,0 0 15px #1b9fd029;touch-action:manipulation;}
 .prem-nav.shop{border-color:#cf9d49;background:linear-gradient(155deg,#583b1ff5,#11151af5)}
 .prem-nav.locked{opacity:.80}
@@ -2425,6 +2425,7 @@ function showMenu(){
     ${button('lobbyLeaders','trophy','טבלת מובילים','דירוג לפי אוכל')}
     ${button('lobbyShop','store','חנות','זאנוס · מותגוס','shop')}
     ${button('lobbyPlayers','players','שחקנים','דמויות וכוחות')}
+    ${button('lobbyOnline','players','אונליין','שחק עם חבר בחדר פרטי')}
    </footer>
   </main>`,'lobbyStart',startGame);
   dom('lobbyProfile').onclick=showAccount;
@@ -2434,6 +2435,7 @@ function showMenu(){
   dom('lobbyLeaders').onclick=showLeaderboard;
   dom('lobbyShop').onclick=showShopSelection;
   dom('lobbyPlayers').onclick=()=>showPlayers();
+  dom('lobbyOnline').onclick=()=>{location.href=new URL('online.html',location.href).href;};
   difficultyButtons.forEach(([id])=>dom('diff_'+id).onclick=()=>{game.difficulty=id;showMenu();});
 }
 
