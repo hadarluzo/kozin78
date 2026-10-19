@@ -27,6 +27,9 @@ export class FullWorld {
  step(dt=1/60){
   if(this.outcome)return;
   const {CONFIG}=this.api;this.tick++;this.time+=dt;
+  // A real multiplayer room needs a short protected opening so both phone clients
+  // can load the scene and discover the hold-to-run control before pursuit starts.
+  const openingGrace=this.time<6;
   const lag=this.games.reduce((a,b)=>a.player.x<b.player.x?a:b);
   // One shared generator, boss, chaser and enemy set for both players.
   const owner=this.generator,savedX=owner.player.x;owner.player.x=Math.max(...this.games.map(g=>g.player.x));owner.obstacles=this.obstacles;owner.foods=this.foods;owner.boss=this.boss;this.spawn(2300);owner.player.x=savedX;this.assignIds();
@@ -45,7 +48,7 @@ export class FullWorld {
    this.enemies=g.combat.enemies;
    // A hit/pull penalty moves the common pursuer forward, with bounded corrections.
    const penalty=oldGap-this.chaser.gap;
-   if(penalty>0&&!frozen)this.chaser.x+=Math.min(30,penalty);
+   if(penalty>0&&!frozen&&!openingGrace)this.chaser.x+=Math.min(30,penalty);
   }
   this.assignIds();
   const trailing=this.games.reduce((a,b)=>a.player.x<b.player.x?a:b),k=this.chaser;
@@ -53,7 +56,10 @@ export class FullWorld {
    const held=this.games.some(g=>g.input.running||g.power.carrying);
    const base=trailing.profile.speed*(1+trailing.profile.growth*Math.min(1,this.time/120));
    const wipe=this.games.some(g=>g.combat.wipe>0),speed=held?base-this.boss.pursuitRate()-(wipe?36:0):78;
-   if(this.time>1.6||held)k.x+=Math.max(0,speed)*dt*scale;
+   if(openingGrace){
+    // Keep Kozin visible near the slower player, but never allow a startup catch.
+    k.x=Math.min(trailing.player.x-(CONFIG.catchGap+100),Math.max(k.x,trailing.player.x-(CONFIG.startGap+35)));
+   }else if(this.time>1.6||held)k.x+=Math.max(0,speed)*dt*scale;
    const trail=trailing.trail;while(trail.length>2&&trail[1].x<k.x)trail.shift();
    if(trail.length>1&&k.x>=trail[0].x){const [a,b]=trail;k.y=a.y+(b.y-a.y)*Math.max(0,Math.min(1,(k.x-a.x)/(b.x-a.x||1)));}else k.y=0;
    if(k.y<4)k.phase+=Math.abs(k.x-oldChaserX)/(300*.73/4);
@@ -66,7 +72,7 @@ export class FullWorld {
   const map=Math.min(this.api.MAPS.length-1,Math.floor(Math.max(0,trailing.player.x-320)/CONFIG.mapLength));
   for(const g of this.games){g.chaser=k;g.boss=this.boss;g.mapIndex=map;g.obstacles=this.obstacles;g.foods=this.foods;g.combat.enemies=this.enemies;}
   k.gap=trailing.player.x-k.x;
-  const caught=this.games.filter(g=>g.player.x-k.x<CONFIG.catchGap);
+  const caught=openingGrace?[]:this.games.filter(g=>g.player.x-k.x<CONFIG.catchGap);
   if(caught.length||k.energy<=0){this.outcome={win:k.energy<=0,reason:k.energy<=0?'escaped':'caught',caught:caught.map(g=>g.id)};for(const g of this.games)g.finish(this.outcome.win);}
   for(const g of this.games)g.events=[];
  }
