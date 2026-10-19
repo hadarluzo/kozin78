@@ -22,7 +22,7 @@ for(const hero of ['michael','moreno']){const w=new FullWorld(profiles(hero),'ha
  const w=new FullWorld(profiles('luzo','tzippy'),'normal',2026);
  const initial=w.snapshot();
  assert.equal(initial.players[0].hero,'luzo');
- assert.equal(initial.players[1].hero,'tzippy','other player's selected hero must remain in snapshots');
+ assert.equal(initial.players[1].hero,'tzippy','remote selected hero must remain in snapshots');
  assert.equal(initial.players[1].gear.outfit,'tech','remote wardrobe must remain in snapshots');
  for(let i=0;i<359;i++){w.step();assert.equal(w.outcome,null,'no immediate Kozin catch during protected online opening');}
  assert(w.games.every(g=>g.player.x-w.chaser.x>82),'both runners have safe gap at start');
