@@ -1,48 +1,20 @@
-<!doctype html><html lang="he" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"><title>המרדף של קוזין</title><style>
-*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#081524;font-family:Arial,sans-serif}#game-frame{position:fixed;inset:0;width:100%;height:100%;border:0}
-#modebar{display:none;position:fixed;z-index:10000;right:3%;top:calc(env(safe-area-inset-top) + 17%);width:min(35vw,350px);background:#0d2038ee;padding:9px;border:2px solid #e5bd70;border-radius:13px;box-shadow:0 9px 28px #0009;direction:rtl;color:#ffe4a9}
-#modebar .title{font-size:clamp(11px,1.3vw,16px);font-weight:900;margin-bottom:7px;text-align:center}#modebar .choices{display:flex;gap:5px}
-#modebar button{width:50%;min-width:0;padding:9px 3px;border:1px solid #a68a5d;border-radius:9px;font-weight:800;font-size:clamp(10px,1.15vw,15px);color:#ffe1a2;background:#16273c;touch-action:manipulation}
-#modebar button[aria-pressed=true]{background:linear-gradient(#fff1b6,#e8ac3c);color:#101928;border:2px solid #fff6d4}
-@media(max-width:650px){#modebar{right:2%;top:16%;width:40vw;padding:5px}#modebar button{padding:7px 1px;font-size:10px}}
-</style></head><body>
-<iframe id="game-frame" src="/index.html" title="המרדף של קוזין" allow="autoplay;fullscreen" allowfullscreen></iframe>
-<div id="modebar" role="group" aria-label="מצב משחק"><div class="title">בחר מצב משחק</div><div class="choices"><button id="regular" type="button" aria-pressed="true">🎮 רגיל</button><button id="online" type="button" aria-pressed="false">🌐 אונליין</button></div></div>
-<script>
-(()=>{
-const frame=document.getElementById('game-frame'),bar=document.getElementById('modebar'),regular=document.getElementById('regular'),online=document.getElementById('online');
-let mode='regular',doc=null,observer=null,raf=false;
-function select(value){mode=value;regular.setAttribute('aria-pressed',String(value==='regular'));online.setAttribute('aria-pressed',String(value==='online'))}
-regular.onclick=()=>select('regular');online.onclick=()=>select('online');
-function check(){
- raf=false; if(!doc)return;
- try{
-  const start=doc.getElementById('lobbyStart');
-  const visible=!!(start&&start.isConnected&&start.getClientRects().length&&!doc.getElementById('overlay')?.classList.contains('hidden'));
-  bar.style.display=visible?'block':'none';
- }catch{bar.style.display='none'}
+<!doctype html><html lang="he" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"><title>המרדף של קוזין — בחירת מוד</title>
+<style>html,body{margin:0;height:100%;overflow:hidden;background:#101522;font-family:Arial,sans-serif}#game-frame{position:fixed;inset:0;width:100%;height:100%;border:0}#modebar{position:fixed;z-index:2147483647;top:calc(9px + env(safe-area-inset-top));left:50%;transform:translateX(-50%);width:min(94vw,480px);padding:11px 14px 13px;border-radius:19px;border:3px solid #fff0a1;background:linear-gradient(135deg,#18283df7,#091b2cfa);box-shadow:0 0 0 3px #161719a8,0 9px 32px #000c,0 0 30px #ffca5185;text-align:center;color:#ffe7a0;box-sizing:border-box;direction:rtl}#modebar .heading{font-weight:900;font-size:clamp(18px,4vw,24px);margin-bottom:9px;text-shadow:0 2px 4px #000}#modebar .choices{display:flex;gap:10px}#modebar button{flex:1;min-height:52px;padding:9px 6px;border:2px solid #a48b5f;border-radius:12px;background:#10293f;color:white;font-weight:900;font-size:clamp(16px,3.5vw,20px);cursor:pointer;touch-action:manipulation}#modebar button[aria-pressed=true]{background:linear-gradient(#ffeeb4,#e9ac31);color:#17202b;border-color:white}#modebar .hint{font-size:12px;color:#d7e4e8;margin-top:8px;font-weight:600}#modebar[hidden]{display:none!important}@media(max-height:510px){#modebar{top:calc(3px + env(safe-area-inset-top));width:min(77vw,450px);padding:5px 10px}#modebar .heading{font-size:14px;margin-bottom:3px}#modebar button{min-height:33px;font-size:13px;padding:4px}#modebar .hint{display:none}}</style></head>
+<body><iframe id="game-frame" src="/index.html" title="המרדף של קוזין" allow="autoplay;fullscreen" allowfullscreen></iframe>
+<div id="modebar" role="group" aria-label="בחר מצב משחק"><div class="heading">🎮 בחר מצב משחק</div><div class="choices"><button type="button" id="regular" aria-pressed="true">רגיל</button><button type="button" id="online" aria-pressed="false">🌐 אונליין</button></div><div class="hint" id="modehint">בחר מוד ואז לחץ ״התחל משחק״</div></div>
+<script>(()=>{
+const frame=document.getElementById('game-frame'),bar=document.getElementById('modebar'),regular=document.getElementById('regular'),online=document.getElementById('online'),hint=document.getElementById('modehint');
+let mode='regular',doc=null,observer=null,scheduled=false,hasStarted=false;
+function select(v){mode=v;regular.setAttribute('aria-pressed',String(v==='regular'));online.setAttribute('aria-pressed',String(v==='online'));hint.textContent=v==='online'?'אונליין נבחר! לחץ ״התחל משחק״':'רגיל נבחר! לחץ ״התחל משחק״';}
+regular.addEventListener('click',()=>select('regular'));online.addEventListener('click',()=>select('online'));
+function update(){scheduled=false;try{const start=doc?.getElementById('lobbyStart');if(!start)return;const shown=start.getClientRects().length>0&&!start.closest('[hidden]');bar.hidden=hasStarted||!shown;}catch{}}
+function queue(){if(scheduled)return;scheduled=true;requestAnimationFrame(update)}
+function attach(){let d;try{d=frame.contentDocument;if(!d?.documentElement||d===doc)return;}catch{return}
+ observer?.disconnect();doc=d;hasStarted=false;select('regular');bar.hidden=false;
+ d.addEventListener('click',event=>{const start=event.target?.closest?.('#lobbyStart');if(!start)return;if(mode==='online'){event.preventDefault();event.stopImmediatePropagation();event.stopPropagation();window.location.href='/online.html';}else{hasStarted=true;bar.hidden=true;}},true);
+ observer=new MutationObserver(()=>{const start=d.getElementById('lobbyStart');if(start?.getClientRects().length && !d.querySelector('.prem-running'))hasStarted=false;queue()});
+ observer.observe(d.documentElement,{subtree:true,childList:true,attributes:true,attributeFilter:['class','style','hidden']});
+ queue();
 }
-function schedule(){if(raf)return;raf=true;requestAnimationFrame(check)}
-function watch(){
- let current;try{current=frame.contentDocument;if(!current?.documentElement||current===doc)return;}catch{return}
- observer?.disconnect();doc=current;select('regular');
- // This is capture-phase so online selection intercepts the original start handler.
- doc.addEventListener('click',e=>{
-  if(mode!=='online'||!e.target?.closest?.('#lobbyStart'))return;
-  e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();
-  location.assign('/online.html');
- },true);
- doc.addEventListener('keydown',e=>{
-  if(mode!=='online'||e.code!=='Enter')return;
-  if(e.target?.closest?.('#lobbyStart')||e.target===doc.body){
-   e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();location.assign('/online.html');
-  }
- },true);
- observer=new MutationObserver(schedule);
- observer.observe(doc.documentElement,{subtree:true,childList:true,attributes:true,attributeFilter:['class','style','hidden','disabled']});
- schedule();
-}
-frame.addEventListener('load',watch);watch();
-setInterval(()=>{watch();check()},1000);
-})();
-</script></body></html>
+frame.addEventListener('load',attach);attach();setInterval(()=>{attach();update()},850);
+})();</script></body></html>
