@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="he" dir="rtl"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>קוזין אונליין | 1 נגד 1</title>
+<style>
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;overscroll-behavior:none;background:#071421;color:#ffe9b6;font-family:Arial,Helvetica,sans-serif;touch-action:none}
+#game{position:absolute;inset:0;width:100%;height:100%}
+#top{position:absolute;top:0;left:0;right:0;padding:calc(10px + env(safe-area-inset-top)) 15px 10px;display:flex;align-items:center;justify-content:space-between;gap:10px;background:linear-gradient(#061322ef,#06132299);font-size:13px}
+#menu{position:absolute;inset:0;display:grid;place-items:center;overflow-y:auto;touch-action:pan-y;background:#04121de8;padding:20px 0}
+#panel{width:min(94vw,530px);padding:23px;border:2px solid #d3a752;border-radius:18px;background:linear-gradient(145deg,#1a384d,#071625);text-align:center;box-shadow:0 18px 60px #000a}
+h1{font-size:clamp(26px,6vw,34px);color:#ffcf70;margin:0 0 10px}
+p{line-height:1.5}small{color:#b6cad2;font-size:12px}input,select,button{font:inherit;border-radius:10px;padding:12px;border:1px solid #bd9d5f}
+input,select{background:#071625;color:white;width:100%;margin:7px 0}
+button{background:#edbd58;color:#162332;font-weight:bold;cursor:pointer}
+button:disabled{opacity:.4;cursor:not-allowed}
+.buttons{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
+.buttons button{flex:1}
+#roomCode{font-size:37px;letter-spacing:6px;direction:ltr;font-weight:900;color:#89e4ff;user-select:all}
+#status{min-height:27px;color:#ffdb92;margin-top:10px}
+#controls{display:none;position:absolute;left:max(14px,env(safe-area-inset-left));right:max(14px,env(safe-area-inset-right));bottom:max(18px,env(safe-area-inset-bottom));justify-content:space-between;pointer-events:none}
+#controls button{pointer-events:auto;width:min(31vw,165px);height:77px;border:3px solid #fff4bb;font-size:21px;touch-action:none;user-select:none}
+#run{background:#4db9e5}#jump{background:#edbd58}
+a{color:#ffe5a5}
+@media(max-height:540px){#panel{padding:12px}#panel p{margin:8px 0}#panel h1{font-size:24px}input,select,button{padding:8px;margin:3px 0}}
+</style></head>
+<body>
+<canvas id="game"></canvas>
+<div id="top"><b>קוזין אונליין · 1 נגד 1</b><span id="state">מתחבר…</span><span id="distance">0 מ׳</span></div>
+<div id="menu"><section id="panel">
+<h1>המרדף של קוזין ⚔</h1>
+<p>שני שחקנים, מסלול משותף, מצלמה נפרדת לכל אחד</p>
+<small>גרסת בטא נפרדת. השמירות, הבגדים והכסף של המשחק הרגיל אינם משתנים.</small>
+<input id="name" maxlength="20" placeholder="השם שלך" value="שחקן" autocomplete="nickname">
+<select id="hero"><option value="luzo">הדר</option><option value="tzippy">סבתא</option><option value="michael">מיכאל</option><option value="moreno">מורנו</option><option value="eyal">אייל</option></select>
+<div class="buttons"><button id="create">צור חדר</button><button id="join">הצטרף לחדר</button></div>
+<input id="code" maxlength="6" placeholder="קוד חדר בן 6 ספרות" inputmode="numeric" pattern="[0-9]*" dir="ltr">
+<div id="roomCode"></div>
+<button id="share" style="display:none">העתק קישור להזמנה</button>
+<p id="players"></p>
+<div id="status">ממתין לחיבור</div>
+<div class="buttons"><button id="ready" style="display:none">אני מוכן</button><button id="rematch" style="display:none">משחק חוזר</button></div>
+<p><small>צריך ששני השחקנים יבחרו "אני מוכן". אם השרת החינמי ישן, החיבור הראשון עלול להיות איטי.</small></p>
+<a href="./index.html">חזרה למשחק הרגיל</a>
+</section></div>
+<div id="controls"><button id="run">רוץ ▶</button><button id="jump">קפיצה ⤒</button></div>
+<script>
+(()=>{'use strict';
+const SERVER='wss://kozin-online-server.onrender.com';
+const $=id=>document.getElementById(id),canvas=$('game'),ctx=canvas.getContext('2d');
+let ws=null,myId='',roomCode='',roomPlayers=[],isReady=false,running=false,snapshot=null,held=false,last=performance.now(),camera=0;
+const params=new URLSearchParams(location.search);
+if(params.has('room'))$('code').value=(params.get('room')||'').replace(/\D/g,'').slice(0,6);
+function setStatus(s){$('status').textContent=s}
+function send(m){if(ws?.readyState===WebSocket.OPEN)ws.send(JSON.stringify(m))}
+function showMenu(show){$('menu').style.display=show?'grid':'none';$('controls').style.display=show?'none':'flex'}
+let onConnected=null;
+function connect(after){
+ if(ws?.readyState===WebSocket.OPEN){after();return}
+ if(ws?.readyState===WebSocket.CONNECTING){setStatus('מתחבר לשרת, נסה שוב בעוד רגע');return}
+ setStatus('מתחבר לשרת האונליין…');$('state').textContent='מתחבר…';
+ onConnected=after;
+ try{ws=new WebSocket(SERVER)}catch{setStatus('לא ניתן לפתוח את החיבור');return}
+ ws.onopen=()=>{setStatus('מחובר לשרת');$('state').textContent='מחובר';const fn=onConnected;onConnected=null;fn?.()}
+ ws.onerror=()=>setStatus('שגיאת חיבור. אפשר לנסות שוב')
+ ws.onclose=()=>{running=false;held=false;showMenu(true);$('state').textContent='מנותק';setStatus('החיבור נותק. צור חדר חדש או הצטרף שוב');$('roomCode').textContent='';$('share').style.display='none';$('ready').style.display='none';roomCode='';roomPlayers=[];myId='';};
+ ws.onmessage=e=>{let d;try{d=JSON.parse(e.data)}catch{return}
+  if(d.type==='hello')myId=d.id;
+  else if(d.type==='joined'){roomCode=d.code;$('roomCode').textContent=roomCode;$('code').value=roomCode;$('share').style.display='inline-block';$('ready').style.display='inline-block';setStatus('החדר נפתח, מזמינים חבר וממתינים');}
+  else if(d.type==='room'){
+   roomPlayers=d.players;
+   $('players').textContent=d.players.map(p=>p.name+(p.ready?' ✓':'')).join(' נגד ');
+   $('state').textContent='חדר '+d.code;
+   if(d.status==='waiting'){
+    running=false;showMenu(true);$('ready').style.display='inline-block';$('rematch').style.display='none';
+    isReady=!!d.players.find(p=>p.id===myId)?.ready;
+    $('ready').textContent=isReady?'ממתין ליריב…':'אני מוכן';
+   }
+  }
+  else if(d.type==='started'){running=true;held=false;snapshot=null;camera=0;showMenu(false);$('state').textContent='מרדף פעיל';}
+  else if(d.type==='snapshot'){snapshot=d;const me=d.players.find(p=>p.id===myId);$('distance').textContent=Math.max(0,Math.round(((me?.x??0)-310)/10))+' מ׳';}
+  else if(d.type==='result'){
+   running=false;held=false;showMenu(true);
+   const winner=roomPlayers.find(p=>p.id===d.winnerId);
+   setStatus(winner?'המנצח: '+winner.name+'!':'תיקו!');
+   $('ready').style.display='none';$('rematch').style.display='inline-block';
+  }
+  else if(d.type==='error')setStatus(d.message||'שגיאה בחיבור');
+ }
+}
+$('create').onclick=()=>connect(()=>send({type:'create',name:$('name').value,hero:$('hero').value}));
+$('join').onclick=()=>{const code=$('code').value.trim();if(!/^\d{6}$/.test(code)){setStatus('צריך להכניס קוד חדר בן 6 ספרות');return}connect(()=>send({type:'join',code,name:$('name').value,hero:$('hero').value}))};
+$('ready').onclick=()=>{isReady=!isReady;send({type:'ready',ready:isReady});$('ready').textContent=isReady?'ממתין ליריב…':'אני מוכן'};
+$('rematch').onclick=()=>{send({type:'rematch'});$('rematch').style.display='none'};
+$('share').onclick=async()=>{const url=new URL(location.href);url.searchParams.set('room',roomCode);try{await navigator.clipboard.writeText(url.toString());setStatus('קישור ההזמנה הועתק')}catch{setStatus('הקישור: '+url)}};
+const run=$('run'),jump=$('jump');
+function hold(value){if(held===value)return;held=value;send({type:'input',run:value})}
+run.addEventListener('pointerdown',e=>{e.preventDefault();run.setPointerCapture(e.pointerId);hold(true)});
+for(const event of ['pointerup','pointercancel','lostpointercapture'])run.addEventListener(event,()=>hold(false));
+jump.addEventListener('pointerdown',e=>{e.preventDefault();send({type:'jump'})});
+document.addEventListener('keydown',e=>{if(['ArrowRight','KeyD'].includes(e.code)){e.preventDefault();hold(true)}if(['Space','ArrowUp','KeyW'].includes(e.code)){e.preventDefault();if(!e.repeat)send({type:'jump'})}});
+document.addEventListener('keyup',e=>{if(['ArrowRight','KeyD'].includes(e.code))hold(false)});
+addEventListener('blur',()=>hold(false));document.addEventListener('visibilitychange',()=>{if(document.hidden)hold(false)});
+document.addEventListener('dblclick',e=>e.preventDefault(),{passive:false});
+function resize(){const pixelRatio=Math.min(window.devicePixelRatio||1,2);canvas.width=Math.round(innerWidth*pixelRatio);canvas.height=Math.round(innerHeight*pixelRatio);ctx.setTransform(pixelRatio,0,0,pixelRatio,0,0)}
+addEventListener('resize',resize);resize();
+function draw(now){
+ requestAnimationFrame(draw);
+ const dt=Math.min(.05,(now-last)/1000);last=now;const w=innerWidth,h=innerHeight,g=h*.78;
+ const grad=ctx.createLinearGradient(0,0,0,h);grad.addColorStop(0,'#123855');grad.addColorStop(1,'#c89e75');ctx.fillStyle=grad;ctx.fillRect(0,0,w,h);
+ const own=snapshot?.players?.find(p=>p.id===myId);
+ if(own)camera+=(own.x-w*.4-camera)*Math.min(1,dt*9);
+ for(let i=Math.floor(camera/190)-1;i<=Math.floor((camera+w)/190)+1;i++){
+  const x=i*190-camera;ctx.fillStyle='#596b78';ctx.fillRect(x,g-255,155,250);
+  ctx.fillStyle='#e0ad70';for(let r=0;r<4;r++)for(let c=0;c<3;c++)ctx.fillRect(x+14+c*47,g-220+r*50,25,30);
+ }
+ ctx.fillStyle='#2a343c';ctx.fillRect(0,g,w,h-g);
+ ctx.fillStyle='#e2b96a';ctx.fillRect(0,g,w,5);
+ ctx.fillStyle='#efcf99';for(let x=-((camera%120+120)%120);x<w;x+=120)ctx.fillRect(x,g+45,54,4);
+ if(snapshot){
+  for(const o of snapshot.obstacles){const x=o.x-camera;ctx.fillStyle='#815f3f';ctx.fillRect(x,g-o.h,o.w,o.h);ctx.lineWidth=3;ctx.strokeStyle='#f1cd7d';ctx.strokeRect(x,g-o.h,o.w,o.h)}
+  const k=snapshot.chaser.x-camera;
+  ctx.fillStyle='#ecc095';ctx.beginPath();ctx.ellipse(k,g-45,26,38,0,0,2*Math.PI);ctx.fill();
+  ctx.fillStyle='#4d2b1c';ctx.beginPath();ctx.arc(k,g-92,22,0,2*Math.PI);ctx.fill();
+  ctx.font='bold 13px Arial';ctx.textAlign='center';ctx.fillStyle='#fff0cb';ctx.fillText('קוזין',k,g-121);
+  for(const p of snapshot.players){
+   const x=p.x-camera,y=g-p.y,mine=p.id===myId;
+   ctx.fillStyle=mine?'#66d8fa':'#ffa94d';ctx.fillRect(x-13,y-59,26,38);
+   ctx.fillStyle='#edbd91';ctx.beginPath();ctx.arc(x,y-70,16,0,2*Math.PI);ctx.fill();
+   ctx.fillStyle=mine?'#66d8fa':'#ffb75e';ctx.fillRect(x-12,y-22,10,22);ctx.fillRect(x+3,y-22,10,22);
+   ctx.fillStyle='#fff7e0';ctx.font='bold 14px Arial';ctx.fillText(p.name,x,y-101);
+  }
+ }else{
+  ctx.textAlign='center';ctx.fillStyle='#fff2c3';ctx.font='18px Arial';ctx.fillText('ממתין לתחילת המרדף',w/2,g-65);
+ }
+}
+requestAnimationFrame(draw);
+})();
+</script>
+</body></html>
