@@ -48,7 +48,10 @@ export class FullWorld {
    this.enemies=g.combat.enemies;
    // A hit/pull penalty moves the common pursuer forward, with bounded corrections.
    const penalty=oldGap-this.chaser.gap;
-   if(penalty>0&&!frozen&&!openingGrace)this.chaser.x+=Math.min(30,penalty);
+   if(penalty>0&&!frozen&&!openingGrace){
+    const ramp=Math.min(1,Math.max(0,(this.time-6)/3));
+    this.chaser.x+=Math.min(30,penalty)*Math.max(.35,ramp);
+   }
   }
   this.assignIds();
   const trailing=this.games.reduce((a,b)=>a.player.x<b.player.x?a:b),k=this.chaser;
@@ -61,7 +64,12 @@ export class FullWorld {
    if(openingGrace){
     // Keep Kozin visible near the slower player, but never allow a startup catch.
     k.x=Math.min(trailing.player.x-(CONFIG.catchGap+165),Math.max(k.x,trailing.player.x-(CONFIG.startGap+35)));
-   }else if(this.time>1.6||held)k.x+=Math.max(0,speed)*dt*scale;
+    }else{
+    // Fade in the chase over three seconds instead of jumping to full speed
+    // at the exact end of the protected opening. This leaves actual time to react.
+    const ramp=Math.min(1,Math.max(0,(this.time-6)/3));
+    k.x+=Math.max(0,speed)*dt*scale*ramp;
+   }
    const trail=trailing.trail;while(trail.length>2&&trail[1].x<k.x)trail.shift();
    if(trail.length>1&&k.x>=trail[0].x){const [a,b]=trail;k.y=a.y+(b.y-a.y)*Math.max(0,Math.min(1,(k.x-a.x)/(b.x-a.x||1)));}else k.y=0;
    if(k.y<4)k.phase+=Math.abs(k.x-oldChaserX)/(300*.73/4);
