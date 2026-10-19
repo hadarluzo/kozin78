@@ -39,4 +39,13 @@ for(const hero of ['michael','moreno']){const w=new FullWorld(profiles(hero),'ha
  w.step();
  assert(w.chaser.x-previous<3,'chaser speed must follow the trailing runner rather than the leading runner');
 }
+{
+ const w=new FullWorld(profiles(),'normal',31337);
+ w.time=12;w.chaser.x=w.games[0].player.x-65;
+ w.step(1/120);
+ assert.equal(w.outcome?.reason,'caught','one runner can be caught');
+ assert.equal(w.outcome?.perPlayer?.a,'lost','caught player loses');
+ assert.equal(w.outcome?.perPlayer?.b,'won','uncaught player wins');
+ assert.deepEqual([...w.outcome.winners],['b']);
+}
 assert.equal(CATALOG.gear.length,13);console.log('PASS full engine: 8 heroes, 13 cosmetics, freeze, carry, taxi, shared food, Buddha, independent runners');
