@@ -4,7 +4,7 @@
 const art={ready:false,loading:false,failed:false,hero:{},costumes:{},world:{},run:null,chaser:null};
 const loadImage=url=>new Promise(resolve=>{const im=new Image();im.onload=()=>resolve(im);im.onerror=()=>resolve(null);im.src=url;});
 function extractObj(source,tag){const a=source.indexOf(tag);if(a<0)return {};const start=source.indexOf('{',a+tag.length),end=source.indexOf('};',start);if(end<0)return {};return JSON.parse(source.slice(start,end+1));}
-async function load(){
+async function load(players=[]){
  if(art.ready||art.loading||art.failed)return;
  art.loading=true;
  try{
@@ -16,22 +16,29 @@ async function load(){
   const wardrobe=extractObj(source,'const WARDROBE_ART=');
   const drop2=extractObj(source,'const DROP2_ART=');
   const extra=extractObj(source,'const EXPANSION_ART');
-  const keys=Object.keys(heroes);
-  const loaded=await Promise.all(keys.map(async id=>[id,await loadImage(heroes[id])]));
-  for(const [id,img] of loaded)if(img)art.hero[id]=img;
-  art.world.day=await loadImage(assets.day);
-  art.world.evening=await loadImage(assets.evening);
-  art.run=await loadImage(assets.runv2);
-  art.chaser=await loadImage(assets.characters);
-  art.combat=await loadImage(assets.combat);
-  await Promise.all(['luzo','yona','yishai','eyal','hashi','moreno','michael','tzippy'].map(async id=>{
-   art.costumes[id]={};
-   if(wardrobe[id])art.costumes[id].wardrobe=await loadImage(wardrobe[id]);
-   if(drop2[id])art.costumes[id].drop2=await loadImage(drop2[id]);
-   if(drop2[id+'_tech'])art.costumes[id].tech=await loadImage(drop2[id+'_tech']);
-   if(drop2[id+'_fahima'])art.costumes[id].fahima=await loadImage(drop2[id+'_fahima']);
-   if(extra[id]&&!art.hero[id])art.hero[id]=await loadImage(extra[id]);
-  }));
+  // Only two real characters may be in the room. Loading every original atlas
+  // exhausted memory on older iPhones and slowed starting the match.
+  const targets=players.filter(p=>p&&typeof p.hero==='string').slice(0,2);
+  if(!targets.length)targets.push({hero:'luzo',gear:{}});
+  const tasks=[
+    loadImage(assets.day).then(img=>art.world.day=img),
+    loadImage(assets.evening).then(img=>art.world.evening=img),
+    loadImage(assets.characters).then(img=>art.chaser=img)
+  ];
+  for(const p of targets){
+   const id=p.hero;
+   art.costumes[id]||={};
+   if(heroes[id])tasks.push(loadImage(heroes[id]).then(img=>art.hero[id]=img));
+   else if(extra[id])tasks.push(loadImage(extra[id]).then(img=>art.hero[id]=img));
+   if(id==='luzo'&&!p.gear?.outfit)tasks.push(loadImage(assets.runv2).then(img=>art.run=img));
+   const outfit=p.gear?.outfit;
+   if(['dogs','paisley'].includes(outfit)&&drop2[id])tasks.push(loadImage(drop2[id]).then(img=>art.costumes[id].drop2=img));
+   if(['tech','fahima'].includes(outfit)&&wardrobe[id])tasks.push(loadImage(wardrobe[id]).then(img=>art.costumes[id].wardrobe=img));
+   if(['tech','fahima'].includes(outfit)&&drop2[id+'_'+outfit])tasks.push(loadImage(drop2[id+'_'+outfit]).then(img=>art.costumes[id][outfit]=img));
+   if(['dogs','paisley'].includes(outfit)&&drop2[id+'_'+outfit])tasks.push(loadImage(drop2[id+'_'+outfit]).then(img=>art.costumes[id][outfit]=img));
+  }
+  await Promise.all(tasks);
+  if(!art.world.day&&!art.world.evening&&!art.chaser&&!Object.keys(art.hero).length)throw new Error('Original asset maps missing');
   art.ready=true;
  }catch(e){art.failed=true;console.warn('Original artwork unavailable; basic graphics remain',e);}
  finally{art.loading=false;}
@@ -43,9 +50,9 @@ function player(ctx,p,x,feet,height=92){
  const gear=art.costumes[p.hero]||{},outfit=p.gear?.outfit;
  if(outfit){
   let atlas=null,frame=mode;
-  if((outfit==='dogs'||outfit==='paisley')&&gear.drop2){atlas=gear.drop2;if(outfit==='paisley')frame+=12;}
+  if((outfit==='dogs'||outfit==='paisley')&&gear[outfit]){atlas=gear[outfit];frame=mode;}else if((outfit==='dogs'||outfit==='paisley')&&gear.drop2){atlas=gear.drop2;if(outfit==='paisley')frame+=12;}
   else if((outfit==='tech'||outfit==='fahima')&&gear.wardrobe){atlas=gear.wardrobe;if(outfit==='fahima')frame+=12;}
-  else if(gear[outfit])atlas=gear[outfit];
+  else if(gear[outfit]){atlas=gear[outfit];frame=mode;}
   if(atlas){
    const sx=(frame%4)*448,sy=Math.floor(frame/4)*384,scale=height/300;
    ctx.drawImage(atlas,sx,sy,448,384,x-224*scale,feet-335*scale,448*scale,384*scale);
