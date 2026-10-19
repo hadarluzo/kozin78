@@ -20,7 +20,7 @@ button:disabled{opacity:.4;cursor:not-allowed}
 #status{min-height:27px;color:#ffdb92;margin-top:10px}
 #controls{display:none;position:absolute;left:max(14px,env(safe-area-inset-left));right:max(14px,env(safe-area-inset-right));bottom:max(18px,env(safe-area-inset-bottom));justify-content:space-between;pointer-events:none}
 #controls button{pointer-events:auto;width:min(31vw,165px);height:77px;border:3px solid #fff4bb;font-size:21px;touch-action:none;user-select:none}
-#run{background:#4db9e5}#jump{background:#edbd58}
+#run{background:#4db9e5}#jump{background:#edbd58}#actions{display:none;position:absolute;right:16px;bottom:120px;gap:9px;direction:rtl}#actions button{border-radius:11px;border:2px solid #f6d58c;background:#223a51;color:white;padding:10px;font-size:14px;touch-action:manipulation}
 a{color:#ffe5a5}
 @media(max-height:540px){#panel{padding:12px}#panel p{margin:8px 0}#panel h1{font-size:24px}input,select,button{padding:8px;margin:3px 0}}
 </style></head>
@@ -43,12 +43,12 @@ a{color:#ffe5a5}
 <p><small>צריך ששני השחקנים יבחרו "אני מוכן". אם השרת החינמי ישן, החיבור הראשון עלול להיות איטי.</small></p>
 <a href="./index.html">חזרה למשחק הרגיל</a>
 </section></div>
-<div id="controls"><button id="run">רוץ ▶</button><button id="jump">קפיצה ⤒</button></div>
+<div id="actions"><button data-action="punch">אגרוף 👊</button><button data-action="kick">בעיטה 🦵</button><button data-action="power">כוח ✨</button></div><div id="controls"><button id="run">רוץ ▶</button><button id="jump">קפיצה ⤒</button></div>
 <script>
 (()=>{'use strict';
 const SERVER='wss://kozin-online-server.onrender.com';
 const $=id=>document.getElementById(id),canvas=$('game'),ctx=canvas.getContext('2d');
-let ws=null,myId='',roomCode='',roomPlayers=[],isReady=false,running=false,snapshot=null,held=false,last=performance.now(),camera=0;
+let combatText='',combatUntil=0;let ws=null,myId='',roomCode='',roomPlayers=[],isReady=false,running=false,snapshot=null,held=false,last=performance.now(),camera=0;
 const params=new URLSearchParams(location.search);
 if(params.has('room'))$('code').value=(params.get('room')||'').replace(/\D/g,'').slice(0,6);
 const HERO_COLORS={luzo:'#222b32',yona:'#91bfff',yishai:'#dcb0db',eyal:'#e9a75a',hashi:'#9ec881',tzippy:'#cc87a3',michael:'#e87c6e',moreno:'#a493f0'};
@@ -56,7 +56,7 @@ try{const profile=JSON.parse(localStorage.getItem('kuzin-local-v2')||'null');if(
 
 function setStatus(s){$('status').textContent=s}
 function send(m){if(ws?.readyState===WebSocket.OPEN)ws.send(JSON.stringify(m))}
-function showMenu(show){$('menu').style.display=show?'grid':'none';$('controls').style.display=show?'none':'flex'}
+function showMenu(show){$('menu').style.display=show?'grid':'none';$('controls').style.display=show?'none':'flex';$('actions').style.display=show?'none':'flex'}
 let onConnected=null;
 function connect(after){
  if(ws?.readyState===WebSocket.OPEN){after();return}
@@ -82,6 +82,7 @@ function connect(after){
   }
   else if(d.type==='started'){running=true;held=false;snapshot=null;camera=0;showMenu(false);$('state').textContent='מרדף פעיל';}
   else if(d.type==='snapshot'){snapshot=d;const me=d.players.find(p=>p.id===myId);$('distance').textContent=Math.max(0,Math.round(((me?.x??0)-310)/10))+' מ׳';}
+  else if(d.type==='combat'){combatText=(d.action==='power'?'כוח מיוחד':d.action==='kick'?'בעיטה':'אגרוף')+(d.targetId?' · פגיעה!':'');combatUntil=performance.now()+750;}
   else if(d.type==='result'){
    running=false;held=false;showMenu(true);
    const winner=roomPlayers.find(p=>p.id===d.winnerId);
@@ -100,6 +101,7 @@ const run=$('run'),jump=$('jump');
 function hold(value){if(held===value)return;held=value;send({type:'input',run:value})}
 run.addEventListener('pointerdown',e=>{e.preventDefault();run.setPointerCapture(e.pointerId);hold(true)});
 for(const event of ['pointerup','pointercancel','lostpointercapture'])run.addEventListener(event,()=>hold(false));
+$('actions').querySelectorAll('button').forEach(b=>b.addEventListener('pointerdown',e=>{e.preventDefault();send({type:'action',action:b.dataset.action})}));
 jump.addEventListener('pointerdown',e=>{e.preventDefault();send({type:'jump'})});
 document.addEventListener('keydown',e=>{if(['ArrowRight','KeyD'].includes(e.code)){e.preventDefault();hold(true)}if(['Space','ArrowUp','KeyW'].includes(e.code)){e.preventDefault();if(!e.repeat)send({type:'jump'})}});
 document.addEventListener('keyup',e=>{if(['ArrowRight','KeyD'].includes(e.code))hold(false)});
@@ -128,11 +130,14 @@ function draw(now){
   ctx.font='bold 13px Arial';ctx.textAlign='center';ctx.fillStyle='#fff0cb';ctx.fillText('קוזין',k,g-121);
   for(const p of snapshot.players){
    const x=p.x-camera,y=g-p.y,mine=p.id===myId;
+   if(p.action==='punch'||p.action==='kick'){ctx.save();ctx.fillStyle='#ffd96a';ctx.beginPath();ctx.arc(x+23,y-45,p.action==='kick'?19:12,0,2*Math.PI);ctx.fill();ctx.restore();}
+   if(p.stunned){ctx.fillStyle='#8cd8ff';ctx.font='bold 13px Arial';ctx.fillText('קפוא',x,y-123);}
    ctx.fillStyle=HERO_COLORS[p.hero]||'#66d8fa';ctx.fillRect(x-13,y-59,26,38);
    ctx.fillStyle='#edbd91';ctx.beginPath();ctx.arc(x,y-70,16,0,2*Math.PI);ctx.fill();
    ctx.fillStyle=HERO_COLORS[p.hero]||'#66d8fa';ctx.fillRect(x-12,y-22,10,22);ctx.fillRect(x+3,y-22,10,22);
    ctx.fillStyle='#fff7e0';ctx.font='bold 14px Arial';ctx.fillText(p.name,x,y-101);
   }
+   if(performance.now()<combatUntil){ctx.fillStyle='#ffe69b';ctx.font='bold 22px Arial';ctx.fillText(combatText,w/2,h*.22)}
  }else{
   ctx.textAlign='center';ctx.fillStyle='#fff2c3';ctx.font='18px Arial';ctx.fillText('ממתין לתחילת המרדף',w/2,g-65);
  }
