@@ -10,7 +10,7 @@ regular.addEventListener('click',()=>select('regular'));online.addEventListener(
 function update(){scheduled=false;try{const start=doc?.getElementById('lobbyStart');bar.hidden=hasStarted;if(!start)return;const box=start.getBoundingClientRect();if(box.width>0&&box.height>0){const host=frame.getBoundingClientRect();const top=Math.max(6,Math.round(host.top+box.top-42));const left=Math.round(host.left+box.left);const width=Math.round(box.width);bar.style.top=top+'px';bar.style.left=left+'px';bar.style.right='auto';bar.style.width=width+'px';}}catch{}}
 function queue(){if(scheduled)return;scheduled=true;requestAnimationFrame(update)}
 function attach(){let d;try{d=frame.contentDocument;if(!d?.documentElement||d===doc)return;}catch{return}
- observer?.disconnect();doc=d;hasStarted=false;select('regular');bar.hidden=false;
+ observer?.disconnect();doc=d;hasStarted=false;select('regular');bar.hidden=false;const hideNote=d.createElement('style');hideNote.id='kozin-hide-bank-note';hideNote.textContent='.prem-bank-note{display:none!important}';(d.head||d.documentElement).appendChild(hideNote);
  d.addEventListener('click',event=>{const start=event.target?.closest?.('#lobbyStart');if(!start)return;if(mode==='online'){event.preventDefault();event.stopImmediatePropagation();event.stopPropagation();window.location.href='/online.html';}else{hasStarted=true;bar.hidden=true;}},true);
  observer=new MutationObserver(()=>{const start=d.getElementById('lobbyStart');if(start?.getClientRects().length && !d.querySelector('.prem-running'))hasStarted=false;queue()});
  observer.observe(d.documentElement,{subtree:true,childList:true,attributes:true,attributeFilter:['class','style','hidden']});
