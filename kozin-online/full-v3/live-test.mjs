@@ -16,7 +16,7 @@ a.send({type:'create',protocol:PROTOCOL,name:'בדיקה א',hero:'michael',gear
 const joined=await a.until(m=>m.type==='joined');b.send({type:'join',protocol:PROTOCOL,code:joined.code,name:'בדיקה ב',hero:'moreno',gear:{outfit:'tech',head:'kippah'}});await b.until(m=>m.type==='joined');
 a.send({type:'ready',ready:true});b.send({type:'ready',ready:true});await a.until(m=>m.type==='snapshot');await b.until(m=>m.type==='snapshot');
 const inputTimer=setInterval(()=>{if(a.ws.readyState===1)a.input(true);if(b.ws.readyState===1)b.input(true);},70);
-await wait(250);a.send({type:'action',action:'power'});await a.until(m=>m.type==='snapshot'&&m.players.some(p=>p.power.freezeRemaining>0));await b.until(m=>m.type==='snapshot'&&m.players.some(p=>p.power.freezeRemaining>0));
+await a.until(m=>m.type==='snapshot'&&m.time>=(m.startDelay||0)+0.12&&!m.outcome,15000);await wait(100);a.send({type:'action',action:'power'});await a.until(m=>m.type==='snapshot'&&m.players.some(p=>p.power.freezeRemaining>0));await b.until(m=>m.type==='snapshot'&&m.players.some(p=>p.power.freezeRemaining>0));
 assert.equal(a.latest.players[0].gear.fringe,'tekhelet');assert.equal(b.latest.players[0].gear.fringe,'tekhelet');
 const common=a.messages.filter(m=>m.type==='snapshot').find(m=>b.messages.some(n=>n.type==='snapshot'&&n.tick===m.tick));const same=b.messages.find(n=>n.type==='snapshot'&&n.tick===common.tick);assert.deepEqual(common,same);
 const saved=b.identity;b.close();await a.until(m=>m.type==='room'&&m.paused===true);await wait(100);const frozenTick=a.latest.tick;await wait(250);assert.equal(a.latest.tick,frozenTick,'shared pause');
