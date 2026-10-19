@@ -116,6 +116,7 @@ wss.on('connection', ws => {
   });
   ws.on('close', () => {
     if (!room) return;
+    if (room.status === 'running') finish(room, 'disconnect', [id]);
     room.players = room.players.filter(p => p.ws !== ws);
     if (room.players.length === 0) { rooms.delete(room.code); room = null; return; }
     room.status = 'waiting'; room.players.forEach(p => p.ready = false);
