@@ -1,0 +1,58 @@
+name: Rename Grandma in original Kozin game
+on:
+  push:
+    paths:
+      - ".github/workflows/rename-grandma-in-original.yml"
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  rename:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - name: Inspect and correct visible character name
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          path = Path('index.html')
+          original = path.read_text(encoding='utf-8')
+          assert 'tzippy' in original, "Could not find the original character ID; refusing to edit"
+          for word in ('ציפי.סבתא', 'ציפי סבתא', 'ציפי', 'סבתא'):
+              print(f'BEFORE {word}: {original.count(word)}')
+          hits = list(re.finditer('ציפי|סבתא', original))
+          for m in hits[:15]:
+              print('CONTEXT:', repr(original[max(0, m.start()-110):m.end()+140]))
+          # Only modify Hebrew display text. Keep the stable tzippy ID,
+          # power, cosmetics, ownership and saves exactly as before.
+          updated = original.replace('ציפי.סבתא', 'סבתא').replace('ציפי סבתא', 'סבתא').replace('ציפי', 'סבתא')
+          assert 'ציפי' not in updated
+          assert len(updated) > 1000000, 'Unexpectedly short game file'
+          if updated != original:
+              path.write_text(updated, encoding='utf-8')
+              print('UPDATED original index.html:', len(original) - len(updated), 'characters removed')
+          else:
+              print('NO CHANGE: original index.html already has no Tzipi string')
+          PY
+          git diff --check
+          changed="$(git diff --name-only)"
+          test -z "$changed" || test "$changed" = "index.html"
+      - name: Commit original game name fix
+        shell: bash
+        run: |
+          set -e
+          if git diff --quiet -- index.html; then
+            echo "Original game already has no old Hebrew name."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          git commit -m "Rename Tzipi to Grandma in original Kozin game UI"
+          git push origin HEAD:main
