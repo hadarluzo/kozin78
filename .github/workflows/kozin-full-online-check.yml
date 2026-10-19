@@ -3,6 +3,7 @@ on:
   push:
     paths:
       - "kozin-online/**"
+      - "online.html"
       - ".github/workflows/kozin-full-online-check.yml"
   workflow_dispatch:
 jobs:
@@ -16,6 +17,20 @@ jobs:
           node-version: '22'
       - name: Install game server dependencies
         run: npm ci --prefix kozin-online || npm install --prefix kozin-online
+      - name: Run online client syntax check
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          html=Path('online.html').read_text(encoding='utf-8')
+          code=html.split('<script>')[-1].split('</script>')[0]
+          Path('/tmp/kozin-online-client.js').write_text(code,encoding='utf-8')
+          assert 'id="resultView"' in html
+          assert 'r.drawInterpolated=function' in code
+          assert 'renderInstalled=false' in code
+          print('Online client source and result overlay found')
+          PY
+          node --check /tmp/kozin-online-client.js
       - name: Run original-world multiplayer tests
         run: node kozin-online/full-v3/test.mjs
       - name: Run real two-client WebSocket smoke test
