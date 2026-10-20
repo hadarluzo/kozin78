@@ -113,6 +113,36 @@ console.log('PASS synchronized colored countdown, blood-effect warning and local
  game.__onlineStarted=false;renderer.draw(game);
  assert.equal(draws,2,'normal original draw still works outside online mode');
 }
+
+{
+ const a=html.indexOf('const act=t=>');
+ const b=html.indexOf("\n[['jumpBtn','jump']",a);
+ assert(a>0&&b>a,'tap handler exists');
+ let now=100;
+ const sent=[];
+ const frame={game:{player:{y:0,jumps:0}}};
+ const prepare=new Function('frame','clock','sent',`
+ let visualJump=null,smoothSelf={y:0,vy:0,jumps:0};
+ const running=true,inCountdown=()=>false,send=msg=>sent.push(msg);
+ const performance={now:()=>clock.value};
+ ${html.slice(a,b)}
+ return {act,read:()=>({visualJump,smoothSelf})};`);
+ const clock={value:now},game=prepare(frame,clock,sent);
+ game.act('jump');
+ assert.equal(game.read().visualJump.predictedJumps,1);
+ assert(game.read().smoothSelf.y>0,'jump paints positive height before any remote message');
+ clock.value+=60;game.act('jump');
+ assert.equal(game.read().visualJump.predictedJumps,2,'rapid second tap predicts double jump');
+ clock.value+=60;game.act('jump');
+ assert.equal(game.read().visualJump.predictedJumps,2,'third tap must not create a triple jump');
+ assert.equal(frame.game.player.jumps,0,'local prediction cannot mutate authoritative physics');
+ assert.equal(sent.length,3,'actions still reach the server for authoritative validation');
+}
+assert(html.includes('remoteAvatarSource!==other'),'remote cosmetics cache is reused between snapshots');
+assert(html.includes('requestIdleCallback(pump'),'outfit frames warm up away from active gameplay');
+assert(html.includes('if(el.textContent!==value)el.textContent=value'),
+ 'unchanged HUD values avoid mobile Safari layout work');
+console.log('PASS immediate double-jump prediction, snapshot-time sprite caching and off-frame clothing preparation');
 console.log('PASS actual render-loop interpolation, per-frame local motion and original-render fallback');
 console.log('PASS named account, owned-hero gallery, guest fallback, remote transparency and per-player results');
 
