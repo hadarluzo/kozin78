@@ -51,7 +51,7 @@ const buildBegin=new Function('ctx',`
  let appReady=ctx.appReady,frame=ctx.frame,profile=null,reconnectStart=0;
  const $=ctx.find,announce=ctx.announce,send=ctx.send;
  const clearSession=ctx.clearSession,syncAccountProfile=ctx.syncAccountProfile;
- const sessionStorage=ctx.sessionStorage,setTimeout=()=>{};
+ const sessionStorage=ctx.sessionStorage,startSocket=ctx.startSocket,PROTOCOL='kozin-full-3',setTimeout=()=>{};
  ${beginScript}
  return kind=>{beginRoom(kind);return profile;};
 `);
