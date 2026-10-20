@@ -48,7 +48,8 @@ const scenario={
  startSocket:onOpen=>onOpen()
 };
 const buildBegin=new Function('ctx',`
- let appReady=ctx.appReady,frame=ctx.frame,profile=null,reconnectStart=0;
+ let appReady=ctx.appReady,frame=ctx.frame,profile=null,reconnectStart=0,connectPending=false;
+ const beginConnectFeedback=()=>{connectPending=true};
  const $=ctx.find,announce=ctx.announce,send=ctx.send;
  const clearSession=ctx.clearSession,syncAccountProfile=ctx.syncAccountProfile;
  const sessionStorage=ctx.sessionStorage,startSocket=ctx.startSocket,PROTOCOL='kozin-full-3',setTimeout=()=>{};
