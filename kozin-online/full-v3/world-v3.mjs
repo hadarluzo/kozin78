@@ -11,8 +11,12 @@ const copy=x=>JSON.parse(JSON.stringify(x));
 export class FullWorld {
  constructor(profiles,difficulty='normal',seed=Date.now(),options={}){
   this.api=engine(seed);const {RunnerGame,DIFFICULTIES,CONFIG}=this.api;
-  this.difficulty=DIFFICULTIES[difficulty]?difficulty:'normal';this.tick=0;this.time=0;this.outcome=null;this.sequence=0;this.startDelay=options.countdown===true?5:0;
-  this.games=profiles.map((p,i)=>{const g=new RunnerGame({effect(){},music(){}});g.difficulty=this.difficulty;g.wallet.selected=this.api.HEROES[p.hero]?p.hero:'luzo';g.wallet.name=p.name;g.input={running:false,lifting:false,clear(){this.running=false;this.lifting=false;}};g.start();g.id=p.id;g.gear=p.gear;g.secondary=!!i;g.player.x+=i*110;g.hitIds=new Set();g.passedIds=new Set();g.contactIds=new Set();g.viewWidth=1000;g.events=[];return g;});
+  this.difficulty=DIFFICULTIES[difficulty]?difficulty:'normal';this.tick=0;this.time=0;this.outcome=null;this.sequence=0;this.startDelay=options.countdown===true?4:0;
+  this.games=profiles.map((p,i)=>{const g=new RunnerGame({effect(){},music(){}});g.difficulty=this.difficulty;g.wallet.selected=this.api.HEROES[p.hero]?p.hero:'luzo';g.wallet.name=p.name;g.input={running:false,lifting:false,clear(){this.running=false;this.lifting=false;}};g.start();g.id=p.id;g.gear=p.gear;g.secondary=!!i;g.hitIds=new Set();g.passedIds=new Set();g.contactIds=new Set();g.viewWidth=1000;g.events=[];return g;});
+  // All players enter the same shared-world starting line, not staggered
+  // by their roster order. Keep separate player objects for independent play.
+  const startingX=this.games[0].player.x,startingY=this.games[0].player.y;
+  for(const g of this.games){g.player.x=startingX;g.player.y=startingY;}
   this.chaser=this.games[0].chaser;this.chaser.x=this.games[0].player.x-CONFIG.startGap;this.boss=this.games[0].boss;
   this.obstacles=this.games[0].obstacles;this.foods=this.games[0].foods;this.enemies=[];
   this.generator=this.games[0];this.spawn=this.generator.spawn.bind(this.generator);
