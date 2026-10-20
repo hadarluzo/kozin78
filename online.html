@@ -159,7 +159,13 @@ const INTRO_LINES=['3','2','1','רוצו על נפשותיכם מהמפלצת!!'
 let introStage=-1,autoReadyWhenLoaded=false,gameCanvasRevealed=false,consecutiveFastSamples=0,pingMs=null;
 function updateIntro(){
  const overlay=$('introOverlay');
- if(!running||latest?.outcome||!inCountdown()){overlay.style.display='none';introStage=-1;if(running&&appReady&&!latest?.outcome)$('touchControls').style.display='flex';return}
+ if(!running||latest?.outcome||!inCountdown()){
+  if(overlay.style.display!=='none')overlay.style.display='none';
+  introStage=-1;
+  if(running&&appReady&&!latest?.outcome&&$('touchControls').style.display!=='flex')
+   $('touchControls').style.display='flex';
+  return;
+ }
  const stage=Math.max(0,Math.min(3,Math.floor(introSeconds())));
  overlay.style.display='flex';
  if(stage===introStage)return;
@@ -233,6 +239,37 @@ function beginRoom(kind){
  startSocket(()=>send({type:kind,protocol:PROTOCOL,...profile,...(kind==='join'?{code}:{})}));
  setTimeout(()=>{$('createBtn').disabled=$('joinBtn').disabled=false;selectedButton.textContent=kind==='create'?'צור חדר':'הצטרף לחדר'},3500);
 }
+// Warm expensive accessory sprites while the player is waiting in the lobby.
+// wardrobe.getFrame can call getImageData over hundreds of thousands of pixels
+// on a cache miss. Doing that on the first jump can stall mobile Safari.
+const warmedOutfits=new Set(),warmupQueue=[];
+let warmupScheduled=false;
+function warmupHero(hero,gear={}){
+ if(!appReady||!frame?.wardrobe?.ready||running||!hero)return;
+ const key=hero+':'+JSON.stringify(gear);
+ if(warmedOutfits.has(key))return;
+ warmedOutfits.add(key);
+ // Run/idle/jump/combat frames are exactly what the renderer requests.
+ for(let i=0;i<12;i++)warmupQueue.push({hero,index:i,gear});
+ scheduleWarmup();
+}
+function scheduleWarmup(){
+ if(warmupScheduled||!warmupQueue.length)return;
+ warmupScheduled=true;
+ const pump=()=>{
+  warmupScheduled=false;
+  if(running&&!inCountdown())return;
+  const item=warmupQueue.shift();
+  if(item&&frame?.wardrobe?.ready){
+   try{frame.wardrobe.getFrame(item.hero,item.index,item.gear)}
+   catch(e){if(q.get('debug')==='1')console.warn('Sprite warmup skipped',e)}
+  }
+  if(warmupQueue.length)scheduleWarmup();
+ };
+ if(typeof requestIdleCallback==='function')
+  requestIdleCallback(pump,{timeout:800});
+ else setTimeout(pump,16);
+}
 function onMessage(m){
  if(m.type==='pong'&&Number.isFinite(m.at)){pingMs=Math.max(0,performance.now()-m.at);return;}
  if(m.type==='hello'){if(m.protocol!==PROTOCOL){announce('גרסת שרת לא תואמת');return}}
@@ -251,7 +288,9 @@ function onMessage(m){
   }
  }
  if(m.type==='room'){
-  room=m;rememberRoster(m.players);activeRound=m.round||activeRound;$('roomCode').textContent=m.code;$('waitingPlayers').textContent=(m.players||[]).map(p=>`${p.name} (${heroName(p.hero)}) ${p.connected?'●':'◌'} ${p.ready?'✓ מוכן':'ממתין'}`).join('  |  ');ready=!!m.players?.find(p=>p.id===session?.id)?.ready;$('readyBtn').textContent=ready?'מוכן ✓':'אני מוכן';
+  room=m;rememberRoster(m.players);
+  if(m.status==='waiting'&&appReady)
+   for(const p of m.players||[])warmupHero(p.hero,p.gear||{});activeRound=m.round||activeRound;$('roomCode').textContent=m.code;$('waitingPlayers').textContent=(m.players||[]).map(p=>`${p.name} (${heroName(p.hero)}) ${p.connected?'●':'◌'} ${p.ready?'✓ מוכן':'ממתין'}`).join('  |  ');ready=!!m.players?.find(p=>p.id===session?.id)?.ready;$('readyBtn').textContent=ready?'מוכן ✓':'אני מוכן';
   if(m.status==='waiting'){running=false;latest=null;remote=null;smoothSelf=smoothChaser=smoothRemote=null;roomView();$('readyBtn').style.display='inline-flex';$('againBtn').style.display='none';if(autoReadyWhenLoaded&&!appReady)$('readyBtn').textContent='ממתין לטעינת המשחק…';announce(appReady?'שני שחקנים צריכים ללחוץ ״אני מוכן״':'החדר מחובר. טוען גרפיקה ודמויות לפני תחילת המרדף…');}
   if(m.status==='finished'){running=false;if(latest?.outcome)showResult(latest.outcome);else {roomView();$('readyBtn').style.display='none';$('againBtn').style.display='inline-flex';}}
   if(m.status==='running'){$('pauseChip').style.display=m.paused?'block':'none';if(!m.paused)playView();}
@@ -289,6 +328,7 @@ function showResult(outcome){
 function patchRenderer(){
  if(renderInstalled||!frame)return;
  const r=frame.renderer,orig=r.draw,origCam=r.updateCamera;
+ let remoteAvatar=null,remoteAvatarSource=null;
  renderInstalled=true;
  // Keep authoritative server snapshots separate from display-only interpolation.
  const interp=(last,target,k)=>{
@@ -308,19 +348,34 @@ function patchRenderer(){
   if(!remote||g.state!=='playing')return;
   const ownGear=frame.wardrobe.equipped,other=remote;
   try{
-   const otherHero=other.hero||roomRoster.get(other.id)?.hero||'luzo';
-   frame.wardrobe.equipped={...(roomRoster.get(other.id)?.gear||{}),...(other.gear||{})};
    const displayOther=smoothRemote?{...other.player,x:smoothRemote.x,y:smoothRemote.y,phase:smoothRemote.phase}:other.player;
    // Both players have independent cameras. Avoid expensive sprite drawing
    // for a teammate who is entirely outside this player's visible scene.
    if(!displayOther||displayOther.x<this.camera-120||displayOther.x>this.camera+this.width+120)return;
-   const proxy={...g,wallet:{...g.wallet,selected:otherHero},player:displayOther,power:{...g.power,...other.power,carrying:other.power?.type==='tzippy'&&(other.power?.remaining||0)>0,flying:!!other.power?.flying},combat:{...g.combat,...other.combat},input:{running:other.run||false},grace:0};
+   if(remoteAvatarSource!==other){
+    remoteAvatarSource=other;
+    const otherHero=other.hero||roomRoster.get(other.id)?.hero||'luzo';
+    remoteAvatar={
+     hero:otherHero,
+     gear:{...(roomRoster.get(other.id)?.gear||{}),...(other.gear||{})},
+     label:(other.name||'שחקן')+' · '+heroName(otherHero),
+     wallet:{...g.wallet,selected:otherHero},input:{running:false},combat:{},power:{}
+    };
+   }
+   frame.wardrobe.equipped=remoteAvatar.gear;
+   const proxy={...g,wallet:remoteAvatar.wallet,player:displayOther,
+    power:Object.assign(remoteAvatar.power,g.power,other.power||{},{
+     carrying:other.power?.type==='tzippy'&&(other.power?.remaining||0)>0,
+     flying:!!other.power?.flying}),
+    combat:Object.assign(remoteAvatar.combat,g.combat,other.combat||{}),
+    input:remoteAvatar.input,grace:0};
+   proxy.input.running=!!other.run;
    // Distinguish the teammate visually: never fade the local player's sprite.
    const ctx=this.ctx,oldAlpha=ctx.globalAlpha;
    ctx.save();
    try{ctx.globalAlpha=oldAlpha*.56;this.character(proxy,false);}
    finally{ctx.restore();}
-   this.text((other.name||'שחקן')+' · '+heroName(otherHero),displayOther.x-this.camera,this.ground-(displayOther.y||0)-199,16,'#8ef1ff',true);
+   this.text(remoteAvatar.label,displayOther.x-this.camera,this.ground-(displayOther.y||0)-199,16,'#8ef1ff',true);
   }catch(e){if(!this.remoteErrorLogged){console.warn('Kozin remote render error',e);this.remoteErrorLogged=true}}
   finally{frame.wardrobe.equipped=ownGear}
  };
@@ -335,7 +390,8 @@ function patchRenderer(){
   lastPaintTime=now;
   // Predict a short local movement slice between 20Hz authoritative updates.
   // The actual world, collisions, scoring and progress remain server-controlled.
-  const age=Math.min(.14,Math.max(0,(now-lastSnapshotAt)/1000));
+  const snapshotAge=Math.max(0,(now-lastSnapshotAt)/1000);
+  const age=Math.min(.15,snapshotAge);
   const me=getOwn();
   const serverSpeed=Number(me?.currentSpeed)||0;
   const baseSpeed=Math.max(0,Number(g.profile?.speed)||425)*(1+(Number(g.profile?.growth)||0)*Math.min(1,(g.time||0)/120));
@@ -344,13 +400,13 @@ function patchRenderer(){
   const targetX=g.player.x+speed*age;
   const predY=((g.player.jumps||0)>0||g.player.y>0)?Math.max(0,g.player.y+(g.player.vy||0)*age-775*age*age):g.player.y;
   let predicted={...g.player,x:targetX,y:predY};
-  if(visualJump&&now-visualJump.at<320&&(me?.player?.jumps||0)<visualJump.predictedJumps){
+  if(visualJump&&now-visualJump.at<800&&(me?.player?.jumps||0)<visualJump.predictedJumps){
    const t=(now-visualJump.at)/1000;
    predicted.y=Math.max(predicted.y,visualJump.y+visualJump.vy*t-775*t*t);
    predicted.vy=visualJump.vy-1550*t;
    predicted.jumps=visualJump.predictedJumps;
   }
-  if(visualJump&&(now-visualJump.at>350||(me?.player?.jumps||0)>=visualJump.predictedJumps))visualJump=null;
+  if(visualJump&&(now-visualJump.at>800||(me?.player?.jumps||0)>=visualJump.predictedJumps))visualJump=null;
   // Keep the displayed player moving at frame rate, then reconcile gradually
   // to authoritative collision and physics snapshots; never mutate the server state.
   const k=1-Math.exp(-22*dt);
@@ -358,9 +414,13 @@ function patchRenderer(){
    smoothSelf={x:targetX,y:predicted.y,phase:predicted.phase||0,jumps:predicted.jumps||0,vy:predicted.vy||0};
   }else{
    const oldX=smoothSelf.x;
-   smoothSelf.x+=localSpeed*dt;
-   smoothSelf.x+=(targetX-smoothSelf.x)*(1-Math.exp(-12*dt));
-   smoothSelf.y+=(predicted.y-smoothSelf.y)*(1-Math.exp(-32*dt));
+   // Local movement runs every frame; server snapshots only correct drift.
+   smoothSelf.x+=snapshotAge<.25?Math.min(800,localSpeed)*dt:0;
+   const dx=targetX-smoothSelf.x;
+   if(Math.abs(dx)>115)smoothSelf.x+=Math.sign(dx)*Math.min(Math.abs(dx)-115,120*dt);
+   else smoothSelf.x+=dx*(1-Math.exp(-6*dt));
+   const jumpPending=visualJump&&visualJump.predictedJumps>(me?.player?.jumps||0);
+   smoothSelf.y+=(predicted.y-smoothSelf.y)*(1-Math.exp(-(jumpPending?54:25)*dt));
    smoothSelf.phase=(smoothSelf.phase||0)+Math.max(0,smoothSelf.x-oldX)/30;
    smoothSelf.jumps=predicted.jumps||0;
    smoothSelf.vy=predicted.vy||0;
@@ -409,21 +469,52 @@ function revealGameCanvas(){if(gameCanvasRevealed)return;const doc=$('original')
 }
 function updateGame(m){const me=m.players.find(p=>p.id===session?.id),other=m.players.find(p=>p.id!==session?.id);if(!me||!frame)return;const g=frame.game;
  if(!g.__onlineStarted){g.difficulty=m.difficulty||'normal';g.start();g.update=()=>{};g.events=[];g.__onlineStarted=true;frame.renderer.reset(g)}
- revealGameCanvas();g.state='playing';g.wallet.selected=me.hero;g.player={...g.player,...me.player};g.power=Object.assign(g.power,me.power||{});
- g.combat=Object.assign(g.combat,me.combat||{});g.combat.enemies=m.enemies||[];g.chaser={...g.chaser,...m.chaser};g.boss=Object.assign(g.boss,m.boss||{});
+ revealGameCanvas();g.state='playing';g.wallet.selected=me.hero;Object.assign(g.player,me.player);g.power=Object.assign(g.power,me.power||{});
+ g.combat=Object.assign(g.combat,me.combat||{});g.combat.enemies=m.enemies||[];Object.assign(g.chaser,m.chaser);g.boss=Object.assign(g.boss,m.boss||{});
  g.obstacles=m.obstacles||[];g.foods=m.foods||[];g.mapIndex=m.mapIndex||0;g.distance=me.distance||0;g.time=m.time||0;
  for(const k of ['score','count','combo','maxCombo','hits','missed','cleared','shield','grace','celebration','particles','popups','bubbles'])if(k in me)g[k]=me[k];
- g.input={running:me.run===true,lifting:me.lift===true,clear(){this.running=false;this.lifting=false;}};
+ if(!g.input)g.input={running:false,lifting:false,clear(){this.running=false;this.lifting=false;}};
+ g.input.running=me.run===true;g.input.lifting=me.lift===true;
  remote=other||null;patchRenderer();
 }
-function updateHud(){const me=getOwn();if(!me||!latest)return;$('hudName').textContent=(me.name||'שחקן')+' · '+heroName(me.hero);$('hudDistance').textContent=' · '+Math.round(Math.max(0,(me.player?.x||320)-320)/10)+' מ׳';const friend=latest.players.find(p=>p.id!==session?.id);$('hudRoom').textContent='חדר '+session.code+(friend?' · חבר: '+heroName(friend.hero):'');const delay=Number(latest.startDelay)||0;const remain=Math.max(0,(delay?delay+1.5:6)-(latest.time||0));$('startupChip').textContent='יתרון פתיחה · '+Math.ceil(remain)+' שניות';$('startupChip').style.display=latest.outcome||!running||inCountdown()||remain<=0?'none':'block';$('hudEnergy').textContent='קוזין '+Math.max(0,Math.round(latest.chaser?.energy||0))+'%';$('hudFood').textContent=' · '+(me.count||0)+' מאכלים';const cooldown=Math.max(0,me.power?.cooldown||0);$('powerClock').textContent=cooldown?Math.ceil(cooldown)+' שנ׳':'מוכן';$('powerBtn').disabled=cooldown>0;}
+// DOM updates can trigger expensive layout and style work in mobile Safari.
+// Write HUD fields only when their value actually changed.
+function setHudText(id,value){const el=$(id);if(el.textContent!==value)el.textContent=value;}
+function updateHud(){
+ const me=getOwn();if(!me||!latest)return;
+ setHudText('hudName',(me.name||'שחקן')+' · '+heroName(me.hero));
+ setHudText('hudDistance',' · '+Math.round(Math.max(0,(me.player?.x||320)-320)/10)+' מ׳');
+ const friend=latest.players.find(p=>p.id!==session?.id);
+ setHudText('hudRoom','חדר '+session.code+(friend?' · חבר: '+heroName(friend.hero):''));
+ const delay=Number(latest.startDelay)||0;
+ const remain=Math.max(0,(delay?delay+1.5:6)-(latest.time||0));
+ setHudText('startupChip','יתרון פתיחה · '+Math.ceil(remain)+' שניות');
+ const startup=$('startupChip');
+ const startupDisplay=latest.outcome||!running||inCountdown()||remain<=0?'none':'block';
+ if(startup.style.display!==startupDisplay)startup.style.display=startupDisplay;
+ setHudText('hudEnergy','קוזין '+Math.max(0,Math.round(latest.chaser?.energy||0))+'%');
+ setHudText('hudFood',' · '+(me.count||0)+' מאכלים');
+ const cooldown=Math.max(0,me.power?.cooldown||0);
+ setHudText('powerClock',cooldown?Math.ceil(cooldown)+' שנ׳':'מוכן');
+ const powerButton=$('powerBtn'),disabled=cooldown>0;
+ if(powerButton.disabled!==disabled)powerButton.disabled=disabled;
+}
 function sendInput(force){if(!running||!session||!frame)return;const now=Date.now();if(force!==true&&now-lastSent<65)return;lastSent=now;const width=frame.renderer?.width||1000;send({type:'input',seq:++seq,run:held,lift:false,width});}
-setInterval(()=>sendInput(false),50);
+setInterval(()=>sendInput(false),100);
 // Measure actual socket latency separately from local rendering FPS.
 setInterval(()=>{if(ws?.readyState===WebSocket.OPEN)send({type:'ping',at:performance.now()})},5000);
 function hold(v){if(v&&inCountdown())return;if(held===v)return;held=v;sendInput(true)}
 const run=$('runBtn');run.addEventListener('pointerdown',e=>{e.preventDefault();run.setPointerCapture(e.pointerId);hold(true)});['pointerup','pointercancel','lostpointercapture'].forEach(t=>run.addEventListener(t,e=>{e.preventDefault();hold(false)}));
-const act=t=>{if(!running||inCountdown())return;if(t==='jump'&&frame?.game){const p=frame.game.player;const now=performance.now();const pending=visualJump&&now-visualJump.at<320?visualJump.predictedJumps:0;const jumps=Math.max(p.jumps||0,pending);if(jumps<2)visualJump={at:now,y:Math.max(p.y||0,smoothSelf?.y||0),vy:jumps?610:620,predictedJumps:jumps+1};}send({type:'action',action:t})};
+const act=t=>{if(!running||inCountdown())return;if(t==='jump'&&frame?.game){
+ const p=frame.game.player,now=performance.now();
+ const pending=visualJump&&now-visualJump.at<800?visualJump.predictedJumps:0;
+ const jumps=Math.max(p.jumps||0,pending);
+ if(jumps<2){
+  const y=Math.max(0,p.y||0,smoothSelf?.y||0);
+  visualJump={at:now,y,vy:jumps?610:620,predictedJumps:jumps+1};
+  if(smoothSelf){smoothSelf.y=y+2;smoothSelf.vy=visualJump.vy;smoothSelf.jumps=jumps+1}
+ }
+}send({type:'action',action:t})};
 [['jumpBtn','jump'],['punchBtn','punch'],['kickBtn','kick'],['powerBtn','power']].forEach(([id,a])=>$(id).addEventListener('pointerdown',e=>{e.preventDefault();act(a)}));
 addEventListener('keydown',e=>{if(/INPUT|SELECT|TEXTAREA/.test(document.activeElement?.tagName||''))return;if(['ArrowRight','KeyD'].includes(e.code)){e.preventDefault();hold(true)}if(!e.repeat&&['Space','ArrowUp','KeyW'].includes(e.code)){e.preventDefault();act('jump')}if(!e.repeat&&e.code==='KeyS')act('power');if(!e.repeat&&e.code==='KeyK')act('kick');if(!e.repeat&&e.code==='KeyJ')act('punch')});addEventListener('keyup',e=>{if(['ArrowRight','KeyD'].includes(e.code))hold(false)});
 function hidden(v){if(running||room?.status==='running'){hold(false);send({type:'away',away:v});$('pauseChip').style.display=v?'block':'none';}}
@@ -453,6 +544,9 @@ const baseResize=bridge.renderer.resize;bridge.renderer.maxPixelBudget=matchMedi
 bridge.renderer.resize=function(...args){baseResize.apply(this,args);const pixels=this.canvas.width*this.canvas.height;if(pixels>this.maxPixelBudget){const scale=Math.sqrt(this.maxPixelBudget/pixels);this.canvas.width=Math.round(this.canvas.width*scale);this.canvas.height=Math.round(this.canvas.height*scale);this.dpr*=scale;}};bridge.renderer.resize();$('splash').style.display='none';$('options').style.display=room?'none':'block';
  if(room&&profile){$('hero').value=profile.hero;}// Honor the hero already sent to the server.
  syncAccountProfile();
+ // Pre-render unlocked equipped sprites before anyone is ready to race.
+ warmupHero($('hero').value,{...bridge.wardrobe.equipped});
+ if(room?.status==='waiting')for(const p of room.players||[])warmupHero(p.hero,p.gear||{});
  if(room?.status==='waiting'&&session){
   profile={...profile,hero:$('hero').value||profile?.hero||'luzo',name:String($('nickname').value||profile?.name||'שחקן').slice(0,24),gear:{...bridge.wardrobe.equipped}};
   send({type:'profile',...profile}); // Correct the room roster before starting.

@@ -20,3 +20,13 @@ for(const mode of ['normal','hard']){
  samples.push(result);
 }
 console.log('KOZIN_SERVER_PERF '+JSON.stringify(samples));
+
+const benchWorld=new FullWorld(profiles,'normal',1049);
+benchWorld.input('player1',{run:true});benchWorld.input('player2',{run:true});
+for(let i=0;i<110;i++)benchWorld.step(1/60);
+const count=160;
+const bench=fn=>{const t=performance.now();for(let i=0;i<count;i++)JSON.stringify(fn());return +(performance.now()-t).toFixed(2);};
+for(let i=0;i<12;i++){JSON.stringify(benchWorld.snapshot());JSON.stringify(benchWorld.snapshot(false));}
+const copyAndEncode=bench(()=>benchWorld.snapshot());
+const singleEncode=bench(()=>benchWorld.snapshot(false));
+console.log('KOZIN_SNAPSHOT_ENCODING '+JSON.stringify({count,previousMs:copyAndEncode,singlePassMs:singleEncode,speedup: +(copyAndEncode/Math.max(.001,singleEncode)).toFixed(2)}));
