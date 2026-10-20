@@ -57,7 +57,7 @@ body.online-controls-visible #touchControls{display:block!important}
 </style>
 </head>
 <body>
-<iframe id="original" src="./index.html" title="הגרפיקה המקורית של המרדף" loading="eager"></iframe>
+<iframe id="original" data-game-src="./index.html" title="הגרפיקה המקורית של המרדף" loading="lazy"></iframe>
 <div id="splash">טוען את המשחק המקורי…</div>
 <div id="heroModal" class="hero-modal" role="dialog" aria-modal="true" aria-label="בחירת דמות" hidden><section class="hero-modal-panel"><div class="hero-top"><h2>בחירת דמות</h2><button id="closeHeroModal" class="hero-close" aria-label="סגור בחירת דמות">✕</button></div><p class="muted">רק דמויות שנפתחו אצלך במשחק</p><div id="heroGrid" class="hero-grid" role="group" aria-label="הדמויות שלי"></div></section></div>
 <div id="hud"><span><b id="hudName">שחקן</b><span class="sub" id="hudDistance"></span></span><span class="roomMark" id="hudRoom"></span><span><b id="hudEnergy">קוזין 100%</b><span class="sub" id="hudFood"></span></span></div>
@@ -81,7 +81,7 @@ const q=new URLSearchParams(location.search);if(/^\d{6}$/.test(q.get('room')||''
 $('options').style.display='block';
 $('nickname').readOnly=false;$('nickname').removeAttribute('aria-readonly');
 $('nickname').placeholder='שם שחקן (אפשר להשאיר ריק)';
-$('accountNote').textContent='אפשר ליצור חדר מיד. הדמויות והבגדים מהחשבון ייטענו בנפרד.';
+$('accountNote').textContent='ליצירת חדר אין צורך לחכות לטעינת המשחק. הדמויות והבגדים ייטענו בחדר.';
 const starter=document.createElement('option');starter.value='luzo';starter.textContent='הדר';$('hero').append(starter);$('hero').value='luzo';
 let frame=null,ws=null,profile=null,room=null,session=null,ready=false,running=false,seq=0,held=false,latest=null,remote=null,reconnectTimer=null,reconnectStart=0,stopped=false,manualLeave=false,appReady=false,renderInstalled=false,lastSent=0,activeRound=null,smoothSelf=null,smoothChaser=null,smoothRemote=null,lastPaintTime=0,lastSnapshotAt=0,introStartedAt=0,visualJump=null,frameCount=0,frameSum=0,frameSampleAt=0;const roomRoster=new Map();const HERO_LABELS={luzo:'הדר',yishai:'ישי',eyal:'אייל',moreno:'מורנו',hashi:'האשי',yona:'יונה',tzippy:'סבתא',michael:'מיכאל'};const heroName=id=>HERO_LABELS[id]||id||'דמות לא ידועה';const rememberRoster=ps=>{for(const p of ps||[]){const old=roomRoster.get(p.id)||{};roomRoster.set(p.id,{...old,...p,gear:{...(old.gear||{}),...(p.gear||{})}})}};const enrichedPlayers=ps=>(ps||[]).map(p=>{const old=roomRoster.get(p.id)||{};return {...old,...p,hero:p.hero||old.hero||'luzo',gear:{...(old.gear||{}),...(p.gear||{})}}});
 
@@ -122,7 +122,7 @@ function showHeroPicker(){
  }
  $('heroModal').hidden=false;
 }
-$('heroPicker').onclick=showHeroPicker;
+$('heroPicker').onclick=()=>{ensureGameLoaded();showHeroPicker();if(!appReady)announce('טוען את הדמויות שבבעלותך. אפשר כבר ליצור חדר.');};
 $('closeHeroModal').onclick=()=>{$('heroModal').hidden=true;$('heroPicker').focus()};
 $('heroModal').addEventListener('pointerdown',e=>{if(e.target===$('heroModal'))$('heroModal').hidden=true});
 addEventListener('keydown',e=>{if(e.code==='Escape'&&!$('heroModal').hidden)$('heroModal').hidden=true});
@@ -285,8 +285,13 @@ function beginRoom(kind){
  const selectedButton=kind==='create'?$('createBtn'):$('joinBtn');
  selectedButton.textContent=kind==='create'?'יוצר חדר…':'מתחבר לחדר…';
  announce('יוצר חדר בשרת… אפשר להיכנס ללובי בזמן שהגרפיקה נטענת.');
- startSocket(()=>send({type:kind,protocol:PROTOCOL,...profile,...(kind==='join'?{code}:{})}));
- setTimeout(()=>{$('createBtn').disabled=$('joinBtn').disabled=false;selectedButton.textContent=kind==='create'?'צור חדר':'הצטרף לחדר'},3500);
+ startSocket(()=>{
+  const sent=send({type:kind,protocol:PROTOCOL,...profile,...(kind==='join'?{code}:{})});
+  if(!sent)announce('החיבור נפתח אך בקשת החדר לא נשלחה. מנסה שוב.');
+ });
+ // Keep button locked until the server replies or the attempt visibly fails.
+ // Re-enabling it after 3.5s used to launch overlapping room attempts.
+
 }
 // Warm expensive accessory sprites while the player is waiting in the lobby.
 // wardrobe.getFrame can call getImageData over hundreds of thousands of pixels
@@ -323,10 +328,12 @@ function onMessage(m){
  if(m.type==='pong'&&Number.isFinite(m.at)){pingMs=Math.max(0,performance.now()-m.at);return;}
  if(m.type==='hello'){if(m.protocol!==PROTOCOL){announce('גרסת שרת לא תואמת');return}}
  if(m.type==='joined'){
+  clearConnectPending();
   session={code:m.code,id:m.id,token:m.token};saveSession();room={code:m.code};reconnectStart=0;ready=false;
   roomView();$('roomCode').textContent=m.code;
   announce(appReady?'מחובר לחדר! מחכה לחבר.':'החדר נוצר בהצלחה! טוען את המשחק כדי שתוכל להתחיל.');
   $('pauseChip').style.display='none';
+  ensureGameLoaded();
   // If the assets happened to finish while the socket was connecting,
   // publish the real account name, unlocked character and equipped outfit.
   if(appReady&&frame&&profile){
@@ -355,7 +362,7 @@ function onMessage(m){
   updateIntro();
  }
  if(m.type==='closed'){announce(m.reason||'החדר נסגר');clearSession();room=null;running=false;setTimeout(()=>menuView(),1200);}
- if(m.type==='error'){announce(m.message||'שגיאה בשרת');if(m.fatal){clearSession();room=null;running=false;menuView();}}
+ if(m.type==='error'){if(!session){clearConnectPending();closeSocket();}announce(m.message||'שגיאה בשרת');if(m.fatal){clearSession();room=null;running=false;menuView();}}
 }
 function showResult(outcome){
  if(!session)return;
@@ -661,7 +668,22 @@ bridge.renderer.resize=function(...args){baseResize.apply(this,args);const pixel
  else announce('המנוע המקורי נטען. אפשר לפתוח חדר.');
  if(session?.token&&!ws&&/^\d{6}$/.test(session.code||'')){startSocket(()=>send({type:'resume',protocol:PROTOCOL,...session}));}
  return;}}catch(e){if(attempt===110)announce('טעינת הגרפיקה נכשלה: '+e.message)}await new Promise(r=>setTimeout(r,350))}announce(room?'החדר קיים, אבל הגרפיקה לא נטענה. נסה לרענן את העמוד.':'לא ניתן לטעון את הגרפיקה. אפשר ליצור חדר, אבל כדי לשחק יש לרענן את העמוד.');}
-setupFrame();
+// Start the heavyweight original game only when the player intentionally
+// chooses an owned hero or a room has actually been acknowledged by Render.
+let gameLoadStarted=false;
+function ensureGameLoaded(){
+ if(gameLoadStarted)return;
+ gameLoadStarted=true;
+ const iframe=$('original');
+ iframe.loading='eager';
+ iframe.src=iframe.dataset.gameSrc||'./index.html';
+ setupFrame();
+}
+updateHeroPicker();
+if(session?.token&&/^\d{6}$/.test(session.code||'')){
+ announce('מנסה לשחזר את החדר הקודם…');
+ startSocket(()=>send({type:'resume',protocol:PROTOCOL,...session}));
+}else announce('אפשר ליצור חדר עכשיו. מתחבר לשרת לפני טעינת המשחק הכבד.');
 })();
 </script>
 </body>
