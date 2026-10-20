@@ -157,10 +157,18 @@ function clearSession(){session=null;try{sessionStorage.removeItem(KEY)}catch{}}
 try{session=JSON.parse(sessionStorage.getItem(KEY)||'null')}catch{clearSession()}
 function closeSocket(){const old=ws;ws=null;if(old){old.onclose=null;old.onerror=null;try{old.close(1000)}catch{}}}
 function startSocket(onOpen){clearTimeout(reconnectTimer);closeSocket();manualLeave=false;announce('מתחבר לשרת…');try{ws=new WebSocket(URL)}catch(e){announce('כתובת שרת לא תקינה: '+e.message);return}const current=ws;
+ // A stalled WebSocket handshake can otherwise leave Create Room doing nothing.
+ const handshakeGuard=setTimeout(()=>{
+  if(ws===current&&!session&&!room&&current.readyState!==WebSocket.CLOSED){
+   announce('החיבור התעכב. מנסה שרת מחדש…');
+   try{current.close()}catch{}
+  }
+ },14000);
  ws.onopen=()=>{if(ws!==current)return;announce('מחובר לשרת');onOpen();};
- ws.onmessage=e=>{if(ws!==current)return;let m;try{m=JSON.parse(e.data)}catch{return}onMessage(m)};
+ ws.onmessage=e=>{if(ws!==current)return;let m;try{m=JSON.parse(e.data)}catch{return}if(m.type==='joined')clearTimeout(handshakeGuard);onMessage(m)};
  ws.onerror=()=>announce('השרת לא זמין כרגע. מנסה להתחבר…');
  ws.onclose=()=>{
+  clearTimeout(handshakeGuard);
   if(ws!==current||manualLeave)return;
   running=false;held=false;
   if(!reconnectStart)reconnectStart=Date.now();
@@ -170,7 +178,7 @@ function startSocket(onOpen){clearTimeout(reconnectTimer);closeSocket();manualLe
   if(session&&elapsed<59000){
     $('pauseChip').style.display='block';announce('מחדש חיבור לחדר…');
     reconnectTimer=setTimeout(()=>startSocket(()=>send({type:'resume',protocol:PROTOCOL,code:session.code,id:session.id,token:session.token})),Math.min(4500,800+Math.floor(elapsed/3000)*600));
-  }else if(!session&&profile&&!room&&elapsed<29000){
+  }else if(!session&&profile&&!room&&elapsed<69000){
     announce('השרת מתעורר. מנסה שוב ליצור את החדר…');
     reconnectTimer=setTimeout(()=>startSocket(onOpen),Math.min(4500,1200+Math.floor(elapsed/4000)*650));
   }else{
@@ -202,9 +210,11 @@ function beginRoom(kind){
  clearSession();reconnectStart=0;
  profile={name:chosenName.slice(0,24),hero:selectedHero,gear:appReady?{...frame.wardrobe.equipped}:{},difficulty:$('difficulty').value||'normal'};
  $('createBtn').disabled=$('joinBtn').disabled=true;
+ const selectedButton=kind==='create'?$('createBtn'):$('joinBtn');
+ selectedButton.textContent=kind==='create'?'יוצר חדר…':'מתחבר לחדר…';
  announce('יוצר חדר בשרת… אפשר להיכנס ללובי בזמן שהגרפיקה נטענת.');
  startSocket(()=>send({type:kind,protocol:PROTOCOL,...profile,...(kind==='join'?{code}:{})}));
- setTimeout(()=>{$('createBtn').disabled=$('joinBtn').disabled=false},2400);
+ setTimeout(()=>{$('createBtn').disabled=$('joinBtn').disabled=false;selectedButton.textContent=kind==='create'?'צור חדר':'הצטרף לחדר'},3500);
 }
 function onMessage(m){
  if(m.type==='pong'&&Number.isFinite(m.at)){pingMs=Math.max(0,performance.now()-m.at);return;}
