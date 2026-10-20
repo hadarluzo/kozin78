@@ -1,0 +1,22 @@
+name: Inspect Shop
+on:
+  push:
+    branches: [fix/shop-opening-latest-20261020]
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          s=Path('index.html').read_text()
+          print('FILE SIZE',len(s))
+          for term in ['openShop','shopBtn','shopModal','storeBtn','zenos','motagos','חנות']:
+            for m in list(re.finditer(re.escape(term),s,re.I))[:12]:
+              i=m.start()
+              print('MATCH',term,i,repr(s[max(0,i-260):i+700]))
+          PY
