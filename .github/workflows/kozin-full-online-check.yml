@@ -31,6 +31,8 @@ jobs:
           print('Online client source and result overlay found')
           PY
           node --check /tmp/kozin-online-client.js
+      - name: Verify browser controls are visible and clickable
+        run: node kozin-online/full-v3/browser-controls-test.mjs
       - name: Run original-world multiplayer tests
         run: node kozin-online/full-v3/test.mjs
       - name: Verify account roster and cross-iframe ownership

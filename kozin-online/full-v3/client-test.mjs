@@ -171,6 +171,77 @@ assert(html.includes('requestIdleCallback(pump'),'outfit frames warm up away fro
 assert(html.includes('if(el.textContent!==value)el.textContent=value'),
  'unchanged HUD values avoid mobile Safari layout work');
 console.log('PASS immediate double-jump prediction, snapshot-time sprite caching and off-frame clothing preparation');
+
+// Simulate the exact hidden-controls regression: a multiplayer round starts,
+// while Render is still sending the countdown time (or stalls entirely).
+// Both buttons must stay visible AND the run handler must unlock after 4s.
+{
+ const partStart=html.indexOf('const introSeconds=()=>{');
+ const partEnd=html.indexOf('\nfunction getOwn(){',partStart);
+ assert(partStart>0&&partEnd>partStart,'online UI countdown source exists');
+ const code=html.slice(partStart,partEnd);
+ const classes=()=>{
+  const names=new Set();
+  return {add:n=>names.add(n),remove:n=>names.delete(n),
+   contains:n=>names.has(n),toggle(n,value){
+    if(value===undefined? !names.has(n):value)names.add(n);
+    else names.delete(n);
+   }};
+ };
+ const elements=new Map();
+ const find=id=>{
+  if(!elements.has(id))elements.set(id,{style:{display:''},textContent:'',
+   classList:classes(),offsetWidth:180});
+  return elements.get(id);
+ };
+ const body={classList:classes()};
+ let now=1000;
+ const context={
+  running:true,room:{status:'running',paused:false},latest:{time:0,startDelay:4},
+  introStartedAt:now,lastSnapshotAt:now,appReady:true,frame:{game:{}},
+  autoReadyWhenLoaded:false,gameCanvasRevealed:false,
+  consecutiveFastSamples:0,pingMs:null,
+  document:{body},$:find,hideResult(){},
+  performance:{now:()=>now},setInterval(){return 0}
+ };
+ vm.createContext(context);
+ vm.runInContext(code,context);
+ vm.runInContext('playView();updateIntro();',context);
+ assert.equal(find('touchControls').style.display,'block','arcade controls must appear even at countdown second 3');
+ assert(body.classList.contains('online-controls-visible'),'visible control class is applied at round start');
+ assert(find('touchControls').classList.contains('controls-waiting'),'control buttons indicate countdown without disappearing');
+ assert.equal(find('introText').textContent,'3');
+ now=2000;vm.runInContext('updateIntro()',context);
+ assert.equal(find('touchControls').style.display,'block','controls persist on countdown second 2');
+ assert.equal(find('introText').textContent,'2');
+ now=3000;vm.runInContext('updateIntro()',context);
+ assert.equal(find('introText').textContent,'1','green countdown stage appears');
+ now=4100;vm.runInContext('updateIntro()',context);
+ assert.equal(find('introText').textContent,'רוצו על נפשותיכם מהמפלצת!!','blood warning appears');
+ // Simulate stale server time at zero: wall clock must never leave controls locked.
+ now=5100;vm.runInContext('updateIntro()',context);
+ assert.equal(vm.runInContext('inCountdown()',context),false,'elapsed countdown always unlocks after four real seconds');
+ assert.equal(find('touchControls').style.display,'block','controls remain visible after countdown');
+ assert(!find('touchControls').classList.contains('controls-waiting'),'run button unlocks when countdown finishes');
+ context.held=false;context.sent=0;
+ context.sendInput=()=>{context.sent++};
+ const beginHold=html.indexOf('function hold(v){');
+ const endHold=html.indexOf('\nconst run=',beginHold);
+ assert(beginHold>0&&endHold>beginHold,'run control action exists');
+ vm.runInContext(html.slice(beginHold,endHold)+';hold(true)',context);
+ assert.equal(context.held,true,'run can be held after countdown');
+ assert.equal(context.sent,1,'run sends input immediately');
+ // An out-of-order running-room event with no started/snapshot still
+ // shows controls and explicitly explains that server movement is pending.
+ context.running=false;
+ context.room={status:'running',paused:false};
+ vm.runInContext('playView()',context);
+ assert.equal(find('touchControls').style.display,'block','controls remain visible before first snapshot');
+ assert(find('controlHint').textContent.includes('עדכון הראשון'),'waiting for server is explained');
+ assert(html.includes('body.online-controls-visible #touchControls{display:block!important}'),'CSS does not hide game buttons behind the countdown');
+ assert(html.includes("button.addEventListener('touchstart'"),'iPhone jump has a direct touchstart handler');
+}
+console.log('PASS countdown controls always visible, green 1, server stall fallback and running input');
 console.log('PASS actual render-loop interpolation, per-frame local motion and original-render fallback');
 console.log('PASS named account, owned-hero gallery, guest fallback, remote transparency and per-player results');
 
