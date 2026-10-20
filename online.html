@@ -239,6 +239,37 @@ function beginRoom(kind){
  startSocket(()=>send({type:kind,protocol:PROTOCOL,...profile,...(kind==='join'?{code}:{})}));
  setTimeout(()=>{$('createBtn').disabled=$('joinBtn').disabled=false;selectedButton.textContent=kind==='create'?'צור חדר':'הצטרף לחדר'},3500);
 }
+// Warm expensive accessory sprites while the player is waiting in the lobby.
+// wardrobe.getFrame can call getImageData over hundreds of thousands of pixels
+// on a cache miss. Doing that on the first jump can stall mobile Safari.
+const warmedOutfits=new Set(),warmupQueue=[];
+let warmupScheduled=false;
+function warmupHero(hero,gear={}){
+ if(!appReady||!frame?.wardrobe?.ready||running||!hero)return;
+ const key=hero+':'+JSON.stringify(gear);
+ if(warmedOutfits.has(key))return;
+ warmedOutfits.add(key);
+ // Run/idle/jump/combat frames are exactly what the renderer requests.
+ for(let i=0;i<12;i++)warmupQueue.push({hero,index:i,gear});
+ scheduleWarmup();
+}
+function scheduleWarmup(){
+ if(warmupScheduled||!warmupQueue.length)return;
+ warmupScheduled=true;
+ const pump=()=>{
+  warmupScheduled=false;
+  if(running&&!inCountdown())return;
+  const item=warmupQueue.shift();
+  if(item&&frame?.wardrobe?.ready){
+   try{frame.wardrobe.getFrame(item.hero,item.index,item.gear)}
+   catch(e){if(q.get('debug')==='1')console.warn('Sprite warmup skipped',e)}
+  }
+  if(warmupQueue.length)scheduleWarmup();
+ };
+ if(typeof requestIdleCallback==='function')
+  requestIdleCallback(pump,{timeout:800});
+ else setTimeout(pump,16);
+}
 function onMessage(m){
  if(m.type==='pong'&&Number.isFinite(m.at)){pingMs=Math.max(0,performance.now()-m.at);return;}
  if(m.type==='hello'){if(m.protocol!==PROTOCOL){announce('גרסת שרת לא תואמת');return}}
@@ -257,7 +288,9 @@ function onMessage(m){
   }
  }
  if(m.type==='room'){
-  room=m;rememberRoster(m.players);activeRound=m.round||activeRound;$('roomCode').textContent=m.code;$('waitingPlayers').textContent=(m.players||[]).map(p=>`${p.name} (${heroName(p.hero)}) ${p.connected?'●':'◌'} ${p.ready?'✓ מוכן':'ממתין'}`).join('  |  ');ready=!!m.players?.find(p=>p.id===session?.id)?.ready;$('readyBtn').textContent=ready?'מוכן ✓':'אני מוכן';
+  room=m;rememberRoster(m.players);
+  if(m.status==='waiting'&&appReady)
+   for(const p of m.players||[])warmupHero(p.hero,p.gear||{});activeRound=m.round||activeRound;$('roomCode').textContent=m.code;$('waitingPlayers').textContent=(m.players||[]).map(p=>`${p.name} (${heroName(p.hero)}) ${p.connected?'●':'◌'} ${p.ready?'✓ מוכן':'ממתין'}`).join('  |  ');ready=!!m.players?.find(p=>p.id===session?.id)?.ready;$('readyBtn').textContent=ready?'מוכן ✓':'אני מוכן';
   if(m.status==='waiting'){running=false;latest=null;remote=null;smoothSelf=smoothChaser=smoothRemote=null;roomView();$('readyBtn').style.display='inline-flex';$('againBtn').style.display='none';if(autoReadyWhenLoaded&&!appReady)$('readyBtn').textContent='ממתין לטעינת המשחק…';announce(appReady?'שני שחקנים צריכים ללחוץ ״אני מוכן״':'החדר מחובר. טוען גרפיקה ודמויות לפני תחילת המרדף…');}
   if(m.status==='finished'){running=false;if(latest?.outcome)showResult(latest.outcome);else {roomView();$('readyBtn').style.display='none';$('againBtn').style.display='inline-flex';}}
   if(m.status==='running'){$('pauseChip').style.display=m.paused?'block':'none';if(!m.paused)playView();}
@@ -510,6 +543,9 @@ const baseResize=bridge.renderer.resize;bridge.renderer.maxPixelBudget=matchMedi
 bridge.renderer.resize=function(...args){baseResize.apply(this,args);const pixels=this.canvas.width*this.canvas.height;if(pixels>this.maxPixelBudget){const scale=Math.sqrt(this.maxPixelBudget/pixels);this.canvas.width=Math.round(this.canvas.width*scale);this.canvas.height=Math.round(this.canvas.height*scale);this.dpr*=scale;}};bridge.renderer.resize();$('splash').style.display='none';$('options').style.display=room?'none':'block';
  if(room&&profile){$('hero').value=profile.hero;}// Honor the hero already sent to the server.
  syncAccountProfile();
+ // Pre-render unlocked equipped sprites before anyone is ready to race.
+ warmupHero($('hero').value,{...bridge.wardrobe.equipped});
+ if(room?.status==='waiting')for(const p of room.players||[])warmupHero(p.hero,p.gear||{});
  if(room?.status==='waiting'&&session){
   profile={...profile,hero:$('hero').value||profile?.hero||'luzo',name:String($('nickname').value||profile?.name||'שחקן').slice(0,24),gear:{...bridge.wardrobe.equipped}};
   send({type:'profile',...profile}); // Correct the room roster before starting.
