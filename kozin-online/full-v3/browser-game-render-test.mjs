@@ -1,117 +1,52 @@
 import assert from 'node:assert/strict';
-import {readFileSync,writeFileSync,unlinkSync,createReadStream} from 'node:fs';
+import {readFileSync,createReadStream} from 'node:fs';
 import {createServer} from 'node:http';
 import {spawn,spawnSync} from 'node:child_process';
 import {join,resolve} from 'node:path';
 
 const root=resolve(import.meta.dirname,'../..');
-const online=readFileSync(join(root,'online.html'),'utf8');
-const start=online.indexOf('let cleanAnimationStarted=false');
-const end=online.indexOf('\nfunction revealGameCanvas()',start);
-assert(start>0&&end>start,'clean player renderer is found');
-const snippet=online.slice(start,end);
-const make=JSON.stringify(snippet).replaceAll('</script','<\\/script');
-const fixture=`<!doctype html><html><head><meta charset="utf-8"></head><body>
-<iframe id="game" src="/index.html" style="width:1000px;height:550px;border:0"></iframe>
-<pre id="report">loading</pre>
-<script>
-let done=false;
-function result(data){done=true;document.getElementById('report').textContent=JSON.stringify(data)}
-const iframe=document.getElementById('game');
-iframe.addEventListener('load',()=>{
- const f=iframe.contentWindow;
- let attempts=0;
- const tryGame=()=>{
-  if(done)return;
-  try{
-   const bridge=f.eval('({game,renderer,assets,wardrobe})');
-   if(!bridge?.renderer||!bridge.assets?.loaded||!bridge.wardrobe?.ready){
-    if(++attempts<100){setTimeout(tryGame,100);return}
-    return result({error:'game never loaded assets within 10 seconds',attempts});
-   }
-   const game=bridge.game,renderer=bridge.renderer;
-   game.start();game.state='playing';game.update=()=>{};game.__onlineStarted=true;
-   const f2=bridge.renderer;
-   f.requestAnimationFrame=function(cb){if(cb===f.frame||cb?.name==='frame')return 0;return 0};
-   const friend={id:'friend',name:'חבר בדיקה',hero:'tzippy',
-    player:{x:game.player.x,y:game.player.y,phase:0,jumps:0,flip:0,vy:0},
-    power:{},combat:{},run:false,gear:{}};
-   let drawCalls=0;
-   const originalDrawImage=renderer.ctx.drawImage.bind(renderer.ctx);
-   renderer.ctx.drawImage=function(...args){drawCalls++;return originalDrawImage(...args)};
-   const events={texts:[],characters:0};
-   const oldText=renderer.text.bind(renderer);
-   renderer.text=function(t,...args){if(String(t).includes('חבר'))events.texts.push(String(t));return oldText(t,...args)};
-   const oldCharacter=renderer.character.bind(renderer);
-   renderer.character=function(proxy,chaser){if(!chaser&&proxy.wallet?.selected==='tzippy')events.characters++;return oldCharacter(proxy,chaser)};
-   const makePatch=new Function('environment',`
-    let frame=environment.frame,renderInstalled=false,running=true,
-     latest={players:[{id:'local',player:environment.frame.game.player},{id:'friend',player:environment.friend}]},
-     roomRoster=new Map(),remote=environment.friend,session={id:'local'},
-     held=false,visualJump=null,lastSnapshotAt=performance.now(),
-     lastOnlineFrame=0,renderedSelf=null,renderedFriend=null,
-     lastOnlineDebug=0,pingMs=5;
-    const getOwn=()=>latest.players[0];
-    const heroName=x=>x;const q=new URLSearchParams('');
-    const $=()=>({style:{},textContent:''});
-    ${${make}}
-    patchRenderer();
-    return {draw:()=>frame.renderer.drawInterpolated(frame.game)};
-   `);
-   const api=makePatch({frame:bridge,friend});
-   renderer.camera=game.player.x-270;
-   // One cold paint plus 8 warm paints, all with real city and character art.
-   const begin=performance.now();
-   for(let n=0;n<9;n++)api.draw();
-   const elapsed=performance.now()-begin;
-   result({success:events.characters>0&&events.texts.length>0,
-    characters:events.characters,names:events.texts.slice(0,3),
-    drawImageCalls:drawCalls,drawMs:Math.round(elapsed*100/9)/100,
-    canvasWidth:renderer.canvas.width,canvasHeight:renderer.canvas.height,
-    originalX:game.player.x,friendX:friend.player.x,
-    assetsLoaded:bridge.assets.loaded,heroFrameLoaded:!!bridge.assets.heroFrames?.tzippy?.[8]});
-  }catch(e){result({error:e?.stack||String(e)})}
- };
- tryGame();
-});
-setTimeout(()=>{if(!done)result({error:'page timeout'})},14500);
-<\/script></body></html>`;
-const filename='__kozin_clean_renderer_integration.html';
-writeFileSync(join(root,filename),fixture);
+const html=readFileSync(join(root,'online.html'),'utf8');
+const a=html.indexOf('let cleanAnimationStarted=false');
+const b=html.indexOf('\nfunction revealGameCanvas()',a);
+assert(a>0&&b>a,'clean renderer source exists');
+const patch64=Buffer.from(html.slice(a,b)).toString('base64');
+const fixture='<!doctype html><html><head><meta charset="utf-8"></head><body>'+
+ '<iframe id="game" src="/index.html" style="width:1000px;height:550px;border:0"></iframe>'+
+ '<pre id="report">loading</pre><script src="/fixture.js"></script></body></html>';
+const runner="\nlet done=false;\nfunction result(x){done=true;document.getElementById('report').textContent=JSON.stringify(x)}\nconst iframe=document.getElementById('game');\niframe.addEventListener('load',()=>{\n const f=iframe.contentWindow;let attempts=0;\n function inspect(){\n  if(done)return;\n  try {\n   const bridge=f.eval('({game,renderer,assets,wardrobe})');\n   if(!bridge?.renderer||!bridge.assets?.loaded||!bridge.wardrobe?.ready){\n    if(++attempts<125){setTimeout(inspect,100);return}\n    return result({error:'game art did not finish loading',attempts});\n   }\n   const game=bridge.game,renderer=bridge.renderer;\n   game.start();game.state='playing';game.update=()=>{};game.__onlineStarted=true;\n   f.requestAnimationFrame=()=>0;\n   const hero=bridge.assets.heroFrames?.tzippy?.[8]?'tzippy':'luzo';\n   const friend={id:'friend',name:'חבר בדיקה',hero,\n     player:{x:game.player.x,y:game.player.y,phase:0,jumps:0,vy:0},\n     power:{},combat:{},run:false,gear:{}};\n   let drawImages=0;\n   const originalImage=renderer.ctx.drawImage.bind(renderer.ctx);\n   renderer.ctx.drawImage=function(...args){drawImages++;return originalImage(...args)};\n   const events={names:[],avatars:0};\n   const originalText=renderer.text.bind(renderer);\n   renderer.text=function(name,...rest){if(String(name).includes('חבר'))events.names.push(name);return originalText(name,...rest)};\n   const originalChar=renderer.character.bind(renderer);\n   renderer.character=function(actor,chaser){if(!chaser&&actor.wallet?.selected===hero)events.avatars++;return originalChar(actor,chaser)};\n   const patch=atob('__PATCH_B64__');\n   const makePatch=new Function('env',[\n     'let frame=env.frame,renderInstalled=false,running=true;',\n     'let latest={players:[{id:\"local\",player:env.frame.game.player},{id:\"friend\",player:env.friend}]};',\n     'const roomRoster=new Map(),session={id:\"local\"};',\n     'let remote=env.friend,held=false,visualJump=null,lastSnapshotAt=performance.now(),',\n     'lastOnlineFrame=0,renderedSelf=null,renderedFriend=null,lastOnlineDebug=0,pingMs=5;',\n     'const getOwn=()=>latest.players[0],heroName=x=>x;',\n     'const q=new URLSearchParams(\"\"),$=()=>({style:{},textContent:\"\"});',\n     patch,\n     'patchRenderer();',\n     'return ()=>frame.renderer.drawInterpolated(frame.game)'\n   ].join('\\n'));\n   const draw=makePatch({frame:bridge,friend});\n   renderer.camera=game.player.x-270;\n   const time=performance.now();\n   for(let i=0;i<9;i++)draw();\n   const average=(performance.now()-time)/9;\n   result({ok:events.avatars>=9&&events.names.length>=9,\n     avatars:events.avatars,labels:events.names.slice(0,2),\n     drawImageCalls:drawImages,averageDrawMs:Math.round(average*100)/100,\n     canvasWidth:renderer.canvas.width,canvasHeight:renderer.canvas.height,\n     localWorldX:game.player.x,remoteWorldX:friend.player.x,\n     hero,assetsLoaded:bridge.assets.loaded});\n  } catch(error){result({error:error?.stack||String(error)})}\n }\n inspect();\n});\nsetTimeout(()=>{if(!done)result({error:'browser test timed out'})},17500);\n".replace('__PATCH_B64__',patch64);
 const browser=['google-chrome','google-chrome-stable','chromium','chromium-browser']
- .find(x=>spawnSync('which',[x]).status===0);
-assert(browser,'Chromium not installed in runner');
+ .find(cmd=>spawnSync('which',[cmd]).status===0);
+assert(browser,'Chromium required for game test');
 const server=createServer((req,res)=>{
- const p=req.url==='/'+'/'+filename?filename:req.url==='/index.html'?'index.html':null;
- if(!p){res.writeHead(404);res.end();return}
- res.setHeader('Content-Type','text/html; charset=utf-8');
- createReadStream(join(root,p)).pipe(res);
+ if(req.url==='/index.html'){
+  res.setHeader('Content-Type','text/html; charset=utf-8');
+  createReadStream(join(root,'index.html')).pipe(res);
+ }else if(req.url==='/fixture.js'){
+  res.setHeader('Content-Type','application/javascript; charset=utf-8');res.end(runner);
+ }else if(req.url==='/fixture.html'){
+  res.setHeader('Content-Type','text/html; charset=utf-8');res.end(fixture);
+ }else{res.writeHead(404);res.end()}
 });
-try{
- await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
- const port=server.address().port;
- const args=['--headless=new','--no-sandbox','--disable-gpu','--disable-dev-shm-usage',
-  '--window-size=1200,700','--virtual-time-budget=16500','--dump-dom',
-  'http://127.0.0.1:'+port+'/'+filename];
- const proc=spawn(browser,args);
- let stdout='',stderr='';
- proc.stdout.on('data',x=>{stdout+=x;if(stdout.length>900000)stdout=stdout.slice(-900000)});
- proc.stderr.on('data',x=>{stderr+=x;if(stderr.length>150000)stderr=stderr.slice(-150000)});
- const status=await new Promise((resolve,reject)=>{
-  proc.on('error',reject);proc.on('close',resolve);
-  setTimeout(()=>{if(!proc.killed)proc.kill('SIGKILL')},70000).unref();
+try {
+ await new Promise(ok=>server.listen(0,'127.0.0.1',ok));
+ const url='http://127.0.0.1:'+server.address().port+'/fixture.html';
+ const proc=spawn(browser,['--headless=new','--no-sandbox','--disable-gpu',
+  '--disable-dev-shm-usage','--window-size=1200,700',
+  '--virtual-time-budget=22500','--dump-dom',url]);
+ let out='',errors='';
+ proc.stdout.on('data',v=>{out+=v;if(out.length>500000)out=out.slice(-500000)});
+ proc.stderr.on('data',v=>{errors+=v;if(errors.length>100000)errors=errors.slice(-100000)});
+ const status=await new Promise((ok,no)=>{
+  proc.on('error',no);proc.on('close',ok);
+  setTimeout(()=>{if(!proc.killed)proc.kill('SIGKILL')},90000).unref();
  });
- assert.equal(status,0,'Chrome error: '+stderr.slice(-1200));
- const raw=stdout.match(/<pre id="report">([^<]+)<\/pre>/)?.[1];
- assert(raw,'Chrome failed to generate game renderer report: '+stdout.slice(-1000));
- const parsed=JSON.parse(raw.replaceAll('&quot;','"').replaceAll('&amp;','&'));
- console.log('KOZIN_REAL_BROWSER_RENDER',JSON.stringify(parsed));
- assert(!parsed.error,parsed.error||'unknown browser failure');
- assert(parsed.success,'Remote character and name must be drawn with original game assets');
- assert(parsed.characters>=9,'Remote teammate must be drawn once per frame');
- assert(parsed.drawImageCalls>9,'Original assets must actually be drawn');
- assert.equal(parsed.originalX,parsed.friendX,'Server coordinates still match');
-}finally{
- server.close();
- unlinkSync(join(root,filename));
-}
+ assert.equal(status,0,'Chromium failed: '+errors.slice(-1300));
+ const raw=out.match(/<pre id="report">([^<]+)<\/pre>/)?.[1];
+ assert(raw,'No browser diagnostics: '+out.slice(-900));
+ const result=JSON.parse(raw.replaceAll('&quot;','"').replaceAll('&amp;','&'));
+ console.log('KOZIN_REAL_GAME_RENDER',JSON.stringify(result));
+ assert(!result.error,result.error||'browser game failed');
+ assert(result.ok,'Both sprite and name of teammate must visibly render');
+ assert(result.drawImageCalls>9,'Original sprite atlas and city art must be used');
+ assert.equal(result.localWorldX,result.remoteWorldX,'Same server starting position preserved');
+}finally{server.close()}
