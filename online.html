@@ -138,7 +138,7 @@ const menuView=()=>{autoReadyWhenLoaded=false;profile=null;gameCanvasRevealed=fa
 const inCountdown=()=>running&&(!latest||((latest.startDelay||0)>0&&(latest.time||0)<latest.startDelay));
 const playView=()=>{hideResult();$('veil').classList.add('hidden');$('touchControls').style.display=inCountdown()?'none':'flex';$('hud').style.display='flex';$('splash').style.display='none';};
 const INTRO_LINES=['קוזין מתחיל להיות רעב…','3','2','1','תברחו על נפשותיכם מהמפלצת!!'];
-let introStage=-1,autoReadyWhenLoaded=false,gameCanvasRevealed=false,consecutiveFastSamples=0;
+let introStage=-1,autoReadyWhenLoaded=false,gameCanvasRevealed=false,consecutiveFastSamples=0,pingMs=null;
 function updateIntro(){
  const overlay=$('introOverlay');
  if(!running||latest?.outcome||!inCountdown()){overlay.style.display='none';introStage=-1;return}
@@ -207,6 +207,7 @@ function beginRoom(kind){
  setTimeout(()=>{$('createBtn').disabled=$('joinBtn').disabled=false},2400);
 }
 function onMessage(m){
+ if(m.type==='pong'&&Number.isFinite(m.at)){pingMs=Math.max(0,performance.now()-m.at);return;}
  if(m.type==='hello'){if(m.protocol!==PROTOCOL){announce('גרסת שרת לא תואמת');return}}
  if(m.type==='joined'){
   session={code:m.code,id:m.id,token:m.token};saveSession();room={code:m.code};reconnectStart=0;ready=false;
@@ -280,6 +281,9 @@ function patchRenderer(){
    const otherHero=other.hero||roomRoster.get(other.id)?.hero||'luzo';
    frame.wardrobe.equipped={...(roomRoster.get(other.id)?.gear||{}),...(other.gear||{})};
    const displayOther=smoothRemote?{...other.player,x:smoothRemote.x,y:smoothRemote.y,phase:smoothRemote.phase}:other.player;
+   // Both players have independent cameras. Avoid expensive sprite drawing
+   // for a teammate who is entirely outside this player's visible scene.
+   if(!displayOther||displayOther.x<this.camera-120||displayOther.x>this.camera+this.width+120)return;
    const proxy={...g,wallet:{...g.wallet,selected:otherHero},player:displayOther,power:{...g.power,...other.power,carrying:other.power?.type==='tzippy'&&(other.power?.remaining||0)>0,flying:!!other.power?.flying},combat:{...g.combat,...other.combat},input:{running:other.run||false},grace:0};
    // Distinguish the teammate visually: never fade the local player's sprite.
    const ctx=this.ctx,oldAlpha=ctx.globalAlpha;
@@ -338,7 +342,7 @@ function patchRenderer(){
   if(!frameSampleAt)frameSampleAt=now;
   if(now-frameSampleAt>2500){
    const fps=frameCount/Math.max(.01,(now-frameSampleAt)/1000);
-   if(q.get('debug')==='1'){$('perfTag').style.display='block';$('perfTag').textContent='FPS '+Math.round(fps)+' · NET '+Math.round(Math.max(0,now-lastSnapshotAt))+'ms';}
+   if(q.get('debug')==='1'){$('perfTag').style.display='block';$('perfTag').textContent='FPS '+Math.round(fps)+' · PING '+(pingMs==null?'--':Math.round(pingMs))+'ms · SNAP '+Math.round(Math.max(0,now-lastSnapshotAt))+'ms';}
    // Lower resolution only after a sustained real frame-rate drop, not a single
    // expensive frame. Re-evaluate slowly to avoid resize/quality oscillation.
    if(fps<47&&frame.renderer.maxPixelBudget>450000){
@@ -380,6 +384,8 @@ function updateGame(m){const me=m.players.find(p=>p.id===session?.id),other=m.pl
 function updateHud(){const me=getOwn();if(!me||!latest)return;$('hudName').textContent=(me.name||'שחקן')+' · '+heroName(me.hero);$('hudDistance').textContent=' · '+Math.round(Math.max(0,(me.player?.x||320)-320)/10)+' מ׳';const friend=latest.players.find(p=>p.id!==session?.id);$('hudRoom').textContent='חדר '+session.code+(friend?' · חבר: '+heroName(friend.hero):'');const delay=Number(latest.startDelay)||0;const remain=Math.max(0,(delay?delay+1.5:6)-(latest.time||0));$('startupChip').textContent='יתרון פתיחה · '+Math.ceil(remain)+' שניות';$('startupChip').style.display=latest.outcome||!running||inCountdown()||remain<=0?'none':'block';$('hudEnergy').textContent='קוזין '+Math.max(0,Math.round(latest.chaser?.energy||0))+'%';$('hudFood').textContent=' · '+(me.count||0)+' מאכלים';const cooldown=Math.max(0,me.power?.cooldown||0);$('powerClock').textContent=cooldown?Math.ceil(cooldown)+' שנ׳':'מוכן';$('powerBtn').disabled=cooldown>0;}
 function sendInput(force){if(!running||!session||!frame)return;const now=Date.now();if(force!==true&&now-lastSent<65)return;lastSent=now;const width=frame.renderer?.width||1000;send({type:'input',seq:++seq,run:held,lift:false,width});}
 setInterval(()=>sendInput(false),50);
+// Measure actual socket latency separately from local rendering FPS.
+setInterval(()=>{if(ws?.readyState===WebSocket.OPEN)send({type:'ping',at:performance.now()})},5000);
 function hold(v){if(v&&inCountdown())return;if(held===v)return;held=v;sendInput(true)}
 const run=$('runBtn');run.addEventListener('pointerdown',e=>{e.preventDefault();run.setPointerCapture(e.pointerId);hold(true)});['pointerup','pointercancel','lostpointercapture'].forEach(t=>run.addEventListener(t,e=>{e.preventDefault();hold(false)}));
 const act=t=>{if(!running||inCountdown())return;if(t==='jump'&&frame?.game){const p=frame.game.player;const now=performance.now();const pending=visualJump&&now-visualJump.at<320?visualJump.predictedJumps:0;const jumps=Math.max(p.jumps||0,pending);if(jumps<2)visualJump={at:now,y:Math.max(p.y||0,smoothSelf?.y||0),vy:jumps?610:620,predictedJumps:jumps+1};}send({type:'action',action:t})};
