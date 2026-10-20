@@ -134,11 +134,11 @@ const announce=s=>$('status').textContent=s;
 const send=m=>{if(ws?.readyState===WebSocket.OPEN)try{ws.send(JSON.stringify(m));return true}catch{}return false};
 const hideResult=()=>{$('resultView').style.display='none'};
 const roomView=()=>{hideResult();$('options').style.display='none';$('roomSection').style.display='block';$('veil').classList.remove('hidden');$('touchControls').style.display='none';$('hud').style.display='none';};
-const menuView=()=>{autoReadyWhenLoaded=false;hideResult();$('options').style.display='block';$('roomSection').style.display='none';$('veil').classList.remove('hidden');$('touchControls').style.display='none';$('hud').style.display='none';room=null;running=false;ready=false;activeRound=null;roomRoster.clear();$('startupChip').style.display='none';};
+const menuView=()=>{autoReadyWhenLoaded=false;profile=null;gameCanvasRevealed=false;hideResult();$('options').style.display='block';$('roomSection').style.display='none';$('veil').classList.remove('hidden');$('touchControls').style.display='none';$('hud').style.display='none';room=null;running=false;ready=false;activeRound=null;roomRoster.clear();$('startupChip').style.display='none';};
 const inCountdown=()=>running&&(!latest||((latest.startDelay||0)>0&&(latest.time||0)<latest.startDelay));
 const playView=()=>{hideResult();$('veil').classList.add('hidden');$('touchControls').style.display=inCountdown()?'none':'flex';$('hud').style.display='flex';$('splash').style.display='none';};
 const INTRO_LINES=['קוזין מתחיל להיות רעב…','3','2','1','תברחו על נפשותיכם מהמפלצת!!'];
-let introStage=-1,autoReadyWhenLoaded=false;
+let introStage=-1,autoReadyWhenLoaded=false,gameCanvasRevealed=false,consecutiveFastSamples=0;
 function updateIntro(){
  const overlay=$('introOverlay');
  if(!running||latest?.outcome||!inCountdown()){overlay.style.display='none';introStage=-1;return}
@@ -160,7 +160,24 @@ function startSocket(onOpen){clearTimeout(reconnectTimer);closeSocket();manualLe
  ws.onopen=()=>{if(ws!==current)return;announce('מחובר לשרת');onOpen();};
  ws.onmessage=e=>{if(ws!==current)return;let m;try{m=JSON.parse(e.data)}catch{return}onMessage(m)};
  ws.onerror=()=>announce('השרת לא זמין כרגע. מנסה להתחבר…');
- ws.onclose=()=>{if(ws!==current||manualLeave)return;running=false;held=false;$('pauseChip').style.display='block';if(!reconnectStart)reconnectStart=Date.now();const elapsed=Date.now()-reconnectStart;if(session&&elapsed<59000){announce('מחדש חיבור…');reconnectTimer=setTimeout(()=>startSocket(()=>send({type:'resume',protocol:PROTOCOL,code:session.code,id:session.id,token:session.token})),Math.min(4500,800+Math.floor(elapsed/3000)*600));}else{clearSession();reconnectStart=0;$('pauseChip').style.display='none';announce('החיבור נותק. פתחו חדר חדש.');menuView();}};
+ ws.onclose=()=>{
+  if(ws!==current||manualLeave)return;
+  running=false;held=false;
+  if(!reconnectStart)reconnectStart=Date.now();
+  const elapsed=Date.now()-reconnectStart;
+  // Retry initial room creation too (Render may wake slowly); formerly only
+  // players with an existing session were reconnected.
+  if(session&&elapsed<59000){
+    $('pauseChip').style.display='block';announce('מחדש חיבור לחדר…');
+    reconnectTimer=setTimeout(()=>startSocket(()=>send({type:'resume',protocol:PROTOCOL,code:session.code,id:session.id,token:session.token})),Math.min(4500,800+Math.floor(elapsed/3000)*600));
+  }else if(!session&&profile&&!room&&elapsed<29000){
+    announce('השרת מתעורר. מנסה שוב ליצור את החדר…');
+    reconnectTimer=setTimeout(()=>startSocket(onOpen),Math.min(4500,1200+Math.floor(elapsed/4000)*650));
+  }else{
+    clearSession();reconnectStart=0;$('pauseChip').style.display='none';
+    announce('החיבור לשרת נכשל. אפשר לנסות שוב ליצור חדר.');menuView();
+  }
+ };
 }
 function beginRoom(kind){
  // Room creation must never depend on downloading the heavy original game, its
@@ -198,12 +215,12 @@ function onMessage(m){
   if(m.status==='finished'){running=false;if(latest?.outcome)showResult(latest.outcome);else {roomView();$('readyBtn').style.display='none';$('againBtn').style.display='inline-flex';}}
   if(m.status==='running'){$('pauseChip').style.display=m.paused?'block':'none';if(!m.paused)playView();}
  }
- if(m.type==='started'){running=true;held=false;introStage=-1;seq=0;latest=null;remote=null;smoothSelf=smoothChaser=smoothRemote=null;visualJump=null;lastSnapshotAt=0;lastPaintTime=0;if(frame?.game){frame.game.__onlineStarted=false;}activeRound=m.round||activeRound;revealGameCanvas();playView();announce('המרדף התחיל!');sendInput(false);}
+ if(m.type==='started'){running=true;held=false;gameCanvasRevealed=false;introStage=-1;seq=0;latest=null;remote=null;smoothSelf=smoothChaser=smoothRemote=null;visualJump=null;lastSnapshotAt=0;lastPaintTime=0;if(frame?.game){frame.game.__onlineStarted=false;}activeRound=m.round||activeRound;revealGameCanvas();playView();announce('המרדף התחיל!');sendInput(false);}
  if(m.type==='snapshot'){
   if(!session||m.code!==session.code)return;if(activeRound&&m.round&&m.round!==activeRound)return;lastSnapshotAt=performance.now();const players=enrichedPlayers(m.players);rememberRoster(players);const wasFinished=latest?.outcome;latest={...m,players};
   if(!frame?.game||!appReady)return;
   if(m.outcome){running=false;held=false;if(!wasFinished)showResult(m.outcome);}
-  else{running=true;playView();}
+  else{running=true;if($('veil').classList.contains('hidden')===false||$('touchControls').style.display!==(inCountdown()?'none':'flex'))playView();}
   updateGame(latest);updateHud();
   if(m.outcome)showResult(m.outcome);
   updateIntro();
@@ -309,7 +326,19 @@ function patchRenderer(){
   if(now-frameSampleAt>2500){
    const fps=frameCount/Math.max(.01,(now-frameSampleAt)/1000);
    if(q.get('debug')==='1'){$('perfTag').style.display='block';$('perfTag').textContent='FPS '+Math.round(fps)+' · NET '+Math.round(Math.max(0,now-lastSnapshotAt))+'ms';}
-   if(fps<45&&frame.renderer.maxPixelBudget>480000){frame.renderer.maxPixelBudget=Math.max(480000,Math.round(frame.renderer.maxPixelBudget*.8));frame.renderer.resize();}
+   // Lower resolution only after a sustained real frame-rate drop, not a single
+   // expensive frame. Re-evaluate slowly to avoid resize/quality oscillation.
+   if(fps<47&&frame.renderer.maxPixelBudget>450000){
+    consecutiveFastSamples=0;
+    frame.renderer.maxPixelBudget=Math.max(450000,Math.round(frame.renderer.maxPixelBudget*.82));
+    frame.renderer.resize();
+   }else if(fps>58){
+    consecutiveFastSamples++;
+    if(consecutiveFastSamples>=5&&frame.renderer.maxPixelBudget<950000){
+     frame.renderer.maxPixelBudget=Math.min(950000,Math.round(frame.renderer.maxPixelBudget*1.12));
+     frame.renderer.resize();consecutiveFastSamples=0;
+    }
+   }else consecutiveFastSamples=0;
    frameCount=0;frameSum=0;frameSampleAt=now;
   }
   const priorPlayer=g.player,priorChaser=g.chaser;
@@ -320,7 +349,7 @@ function patchRenderer(){
   }finally{g.player=priorPlayer;g.chaser=priorChaser}
  };
 }
-function revealGameCanvas(){const doc=$('original').contentDocument;if(!doc?.body)return;
+function revealGameCanvas(){if(gameCanvasRevealed)return;const doc=$('original').contentDocument;if(!doc?.body)return;gameCanvasRevealed=true;
  // The original lobby leaves body.home active even after the multiplayer engine starts.
  // That class applies blur(13px) and brightness(.2) to the entire game canvas.
  doc.body.classList.remove('home');doc.getElementById('overlay')?.classList.add('hidden');
