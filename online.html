@@ -443,7 +443,28 @@ function updateGame(m){const me=m.players.find(p=>p.id===session?.id),other=m.pl
  g.input={running:me.run===true,lifting:me.lift===true,clear(){this.running=false;this.lifting=false;}};
  remote=other||null;patchRenderer();
 }
-function updateHud(){const me=getOwn();if(!me||!latest)return;$('hudName').textContent=(me.name||'שחקן')+' · '+heroName(me.hero);$('hudDistance').textContent=' · '+Math.round(Math.max(0,(me.player?.x||320)-320)/10)+' מ׳';const friend=latest.players.find(p=>p.id!==session?.id);$('hudRoom').textContent='חדר '+session.code+(friend?' · חבר: '+heroName(friend.hero):'');const delay=Number(latest.startDelay)||0;const remain=Math.max(0,(delay?delay+1.5:6)-(latest.time||0));$('startupChip').textContent='יתרון פתיחה · '+Math.ceil(remain)+' שניות';$('startupChip').style.display=latest.outcome||!running||inCountdown()||remain<=0?'none':'block';$('hudEnergy').textContent='קוזין '+Math.max(0,Math.round(latest.chaser?.energy||0))+'%';$('hudFood').textContent=' · '+(me.count||0)+' מאכלים';const cooldown=Math.max(0,me.power?.cooldown||0);$('powerClock').textContent=cooldown?Math.ceil(cooldown)+' שנ׳':'מוכן';$('powerBtn').disabled=cooldown>0;}
+// DOM updates can trigger expensive layout and style work in mobile Safari.
+// Write HUD fields only when their value actually changed.
+function setHudText(id,value){const el=$(id);if(el.textContent!==value)el.textContent=value;}
+function updateHud(){
+ const me=getOwn();if(!me||!latest)return;
+ setHudText('hudName',(me.name||'שחקן')+' · '+heroName(me.hero));
+ setHudText('hudDistance',' · '+Math.round(Math.max(0,(me.player?.x||320)-320)/10)+' מ׳');
+ const friend=latest.players.find(p=>p.id!==session?.id);
+ setHudText('hudRoom','חדר '+session.code+(friend?' · חבר: '+heroName(friend.hero):''));
+ const delay=Number(latest.startDelay)||0;
+ const remain=Math.max(0,(delay?delay+1.5:6)-(latest.time||0));
+ setHudText('startupChip','יתרון פתיחה · '+Math.ceil(remain)+' שניות');
+ const startup=$('startupChip');
+ const startupDisplay=latest.outcome||!running||inCountdown()||remain<=0?'none':'block';
+ if(startup.style.display!==startupDisplay)startup.style.display=startupDisplay;
+ setHudText('hudEnergy','קוזין '+Math.max(0,Math.round(latest.chaser?.energy||0))+'%');
+ setHudText('hudFood',' · '+(me.count||0)+' מאכלים');
+ const cooldown=Math.max(0,me.power?.cooldown||0);
+ setHudText('powerClock',cooldown?Math.ceil(cooldown)+' שנ׳':'מוכן');
+ const powerButton=$('powerBtn'),disabled=cooldown>0;
+ if(powerButton.disabled!==disabled)powerButton.disabled=disabled;
+}
 function sendInput(force){if(!running||!session||!frame)return;const now=Date.now();if(force!==true&&now-lastSent<65)return;lastSent=now;const width=frame.renderer?.width||1000;send({type:'input',seq:++seq,run:held,lift:false,width});}
 setInterval(()=>sendInput(false),100);
 // Measure actual socket latency separately from local rendering FPS.
