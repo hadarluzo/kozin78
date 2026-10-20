@@ -739,7 +739,7 @@ $('shareBtn').onclick=async()=>{const l=new URL(location.href);l.searchParams.se
 $('resultAgain').onclick=()=>{$('againBtn').click();hideResult();roomView();announce('ממתינים למשחק חוזר…');};
 $('resultLeave').onclick=()=>$('leaveBtn').click();
 $('leaveBtn').onclick=()=>{autoReadyWhenLoaded=false;manualLeave=true;send({type:'leave'});closeSocket();clearSession();menuView();announce('יצאת מהחדר')};
-async function setupFrame(){let attempt=0;while(attempt++<110){try{const f=$('original').contentWindow;const bridge=f.eval('({game,renderer,assets,wardrobe,controls,contentReady:typeof drop2==='undefined'||drop2.ready===true})');if(bridge?.game&&bridge?.renderer&&bridge.assets.loaded&&bridge.wardrobe&&bridge.contentReady){
+async function setupFrame(){let attempt=0;while(attempt++<110){try{const f=$('original').contentWindow;const bridge=f.eval('({game,renderer,assets,wardrobe,controls,contentReady:typeof drop2==="undefined"||drop2.ready===true})');if(bridge?.game&&bridge?.renderer&&bridge.assets.loaded&&bridge.wardrobe&&bridge.contentReady){
 await Promise.race([Promise.resolve(bridge.game.wallet.ready).catch(()=>{}),new Promise(resolve=>setTimeout(resolve,3500))]);
 // Do not refetch the cloud profile synchronously here: it can keep the entire
 // multiplayer UI waiting when auth or the remote save provider is slow.

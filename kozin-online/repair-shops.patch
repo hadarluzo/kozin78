@@ -1,0 +1,7 @@
+diff --git a/index.html b/index.html
+index 63bc211..1a538eb 100644
+--- a/index.html
++++ b/index.html
+@@ -2441 +2441 @@ function showBrandStore(key,selection){
+- <main class="gear-grid">${items.map(g=>`<button class="gear-card ${g.id===item.id?'selected':''}" data-gear="${g.id}" aria-pressed="${g.id===item.id}"><span class="gear-type">${g.slot==='head'?'אביזר ראש':g.slot==='outfit'?'לבוש':slot==='fringe'?'ציצית':'נעליים'}</span><span class="gear-state">${wardrobe.equipped[g.slot]===g.id?'לובש עכשיו':wardrobe.owned.has(g.id)?'בארון שלך':''}</span><div class="gear-art"><img src="${wardrobe.urls[g.tile]||''}" alt="${g.name}" draggable="false"></div><strong>${g.name}</strong><span class="gear-price">${wardrobe.owned.has(g.id)?'למדידה':g.price+' אוכל'}</span></button>`).join('')}</main></div>
++ <main class="gear-grid">${items.map(g=>`<button class="gear-card ${g.id===item.id?'selected':''}" data-gear="${g.id}" aria-pressed="${g.id===item.id}"><span class="gear-type">${g.slot==='head'?'אביזר ראש':g.slot==='outfit'?'לבוש':g.slot==='fringe'?'ציצית':'נעליים'}</span><span class="gear-state">${wardrobe.equipped[g.slot]===g.id?'לובש עכשיו':wardrobe.owned.has(g.id)?'בארון שלך':''}</span><div class="gear-art"><img src="${wardrobe.urls[g.tile]||''}" alt="${g.name}" draggable="false"></div><strong>${g.name}</strong><span class="gear-price">${wardrobe.owned.has(g.id)?'למדידה':g.price+' אוכל'}</span></button>`).join('')}</main></div>
