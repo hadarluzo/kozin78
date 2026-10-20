@@ -26,7 +26,7 @@ sync();
 assert.deepEqual(options.map(o=>o.value),['luzo']);
 assert.equal(elems.nickname.readOnly,false,'guest can enter an explicit temporary display name');
 assert.notEqual(elems.nickname.value,'אורח','do not invent a guest username');
-assert(html.includes("ctx.globalAlpha=oldAlpha*.56"),'only the remote avatar is translucent');
+assert(html.includes("ctx.globalAlpha=oldAlpha*.74"),'only the remote avatar is translucent');
 assert(html.includes("outcome.perPlayer?.[session.id]"),'win/loss checks current player id');
 
 const beginStart=html.indexOf('function beginRoom(kind){');
