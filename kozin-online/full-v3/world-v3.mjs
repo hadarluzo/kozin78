@@ -101,9 +101,13 @@ export class FullWorld {
   }
   for(const g of this.games)g.events=[];
  }
- snapshot(){
+ snapshot(detached=true){
   const keys=['player','power','score','count','combo','maxCombo','hits','missed','distance','cleared','shield','grace','currentSpeed','celebration','popups','bubbles'];
-  return copy({protocol:PROTOCOL,tick:this.tick,time:this.time,startDelay:this.startDelay,difficulty:this.difficulty,mapIndex:this.games[0].mapIndex,outcome:this.outcome,chaser:this.chaser,boss:this.boss,obstacles:this.obstacles,foods:this.foods,enemies:this.enemies,players:this.games.map(g=>({id:g.id,name:g.wallet.name,hero:g.wallet.selected,gear:g.gear,run:g.input.running,lift:g.input.lifting,...Object.fromEntries(keys.map(k=>[k,g[k]])),combat:{...g.combat,enemies:undefined},reward:{food:g.wallet.food,xp:g.wallet.xp,best:g.wallet.best}}))});
+  const data={protocol:PROTOCOL,tick:this.tick,time:this.time,startDelay:this.startDelay,difficulty:this.difficulty,mapIndex:this.games[0].mapIndex,outcome:this.outcome,chaser:this.chaser,boss:this.boss,obstacles:this.obstacles,foods:this.foods,enemies:this.enemies,players:this.games.map(g=>({id:g.id,name:g.wallet.name,hero:g.wallet.selected,gear:g.gear,run:g.input.running,lift:g.input.lifting,...Object.fromEntries(keys.map(k=>[k,g[k]])),combat:{...g.combat,enemies:undefined},reward:{food:g.wallet.food,xp:g.wallet.xp,best:g.wallet.best}}))};
+  // The live WebSocket path serializes this object synchronously in the same
+  // event-loop turn. Avoid JSON.stringify -> JSON.parse -> JSON.stringify.
+  // External callers retain the old detached snapshot behavior by default.
+  return detached?copy(data):data;
  }
 }
 export const CATALOG=(()=>{const e=engine(1);return {heroes:Object.keys(e.HEROES),gear:e.GEAR,difficulties:Object.keys(e.DIFFICULTIES)};})();
