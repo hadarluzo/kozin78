@@ -32,7 +32,23 @@
 .intro-content{animation:kozin-intro-pop .38s ease-out both}
 @keyframes kozin-intro-pop{from{opacity:.1;transform:scale(.65)}to{opacity:1;transform:scale(1)}}
 #splash{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;z-index:3;color:#fce6c5;background:#0c1926;pointer-events:none}#startupChip{display:none;position:absolute;z-index:9;top:54px;left:50%;transform:translateX(-50%);padding:7px 14px;border-radius:12px;background:#0b2636e8;color:#ffe1a0;text-align:center;font-size:14px;font-weight:bold;pointer-events:none;white-space:nowrap}#pauseChip{display:none;position:absolute;z-index:9;top:51px;left:50%;transform:translateX(-50%);padding:10px 20px;border-radius:13px;background:#102435ec;color:#ffe09d;text-align:center;font-weight:bold;pointer-events:none}a{color:#ffe1a5}#options{display:block}#backLink{font-size:12px;display:inline-block;margin:12px}
-@media(max-width:700px) and (orientation:portrait){#touchControls .run{height:82px}#attack button{min-height:60px;min-width:54px;font-size:13px;padding:5px}}
+/* Mirror the original game's controls: #run left, #jump right,
+   and a 2-column fight cluster at the middle-right of the screen.
+   Do not use the old bottom flex row: on iPhones it overcrowded all buttons. */
+#touchControls{position:absolute;inset:0;left:0;right:0;bottom:auto;z-index:8;display:none;pointer-events:none;direction:ltr;align-items:initial;justify-content:initial}
+#touchControls button{pointer-events:auto;touch-action:none;-webkit-user-select:none;user-select:none}
+#touchControls .arcade{position:absolute;bottom:max(24px,env(safe-area-inset-bottom));height:86px;width:145px;min-width:0;min-height:0;padding:8px 5px;background:linear-gradient(#1b597b,#0a2843);border:2px solid #ddc58b;outline:2px solid #081729;border-radius:17px;color:#ffda84;font-size:30px;font-weight:1000;text-shadow:2px 2px #081729;box-shadow:inset 0 3px #80bbce,0 5px #020c1a}
+#touchControls .arcade:active{transform:translateY(5px)}
+#touchControls .arcade em{display:block;font-size:10px;margin-top:3px}
+#touchControls #runBtn{left:max(18px,env(safe-area-inset-left));right:auto;width:145px;height:86px;font-size:32px}
+#touchControls #jumpBtn{right:max(18px,env(safe-area-inset-right));left:auto;width:145px;height:86px;font-size:28px}
+#touchControls #attack{position:absolute;top:44%;right:max(12px,env(safe-area-inset-right));left:auto;bottom:auto;width:auto;max-width:none;display:grid;grid-template-columns:repeat(2,64px);gap:9px;direction:rtl;align-items:start;justify-content:initial}
+#touchControls #attack .fight{width:64px;min-width:0;min-height:0;height:60px;padding:4px;background:linear-gradient(#203f5a,#08182b);border:1px solid #ecc274;border-radius:11px;color:#fff2cf;font-size:15px;text-shadow:none;box-shadow:0 4px #071b2c;font-weight:bold}
+#touchControls #attack .special{grid-column:1/3;justify-self:end;width:72px;border-color:#bce393;background:linear-gradient(#49713b,#254025)}
+#touchControls #attack button:nth-child(1){background:linear-gradient(#49713b,#254025)}
+@media(max-height:540px){#touchControls #attack{top:auto;bottom:120px;grid-template-columns:repeat(3,58px);gap:6px}#touchControls #attack .fight{width:58px;height:51px;font-size:13px}#touchControls #attack .special{grid-column:auto;width:58px}}
+@media(max-width:700px) and (orientation:portrait){#touchControls #runBtn,#touchControls #jumpBtn{width:min(35vw,145px);height:82px}#touchControls #attack{right:12px}}
+
 </style>
 </head>
 <body>
@@ -43,7 +59,7 @@
 <div id="resultView" role="dialog" aria-label="תוצאות המשחק"><section id="resultPanel"><div id="resultTitle">הפסדתם</div><p id="resultSummary"></p><p id="resultDistance"></p><div id="resultActions"><button class="btn" id="resultAgain">משחק חוזר</button><button class="btn dark" id="resultLeave">חזרה ללובי</button></div></section></div>
 <div id="introOverlay" class="intro-overlay" aria-live="assertive" aria-atomic="true"><div id="introText" class="intro-content">3</div></div>
 <div id="perfTag" style="display:none;position:absolute;z-index:12;top:52px;right:10px;background:#07212bce;color:#b9f0d9;padding:6px 10px;border-radius:9px;font:700 12px Arial;direction:ltr;pointer-events:none">FPS -- · NET --</div><div id="pauseChip">ממתינים לחיבור מחדש…</div><div id="startupChip">יתרון פתיחה · 6 שניות</div>
-<div id="touchControls"><button class="run" id="runBtn">רוץ<em>החזק</em></button><div id="attack"><button id="powerBtn">כוח<em id="powerClock">מיוחד</em></button><button id="kickBtn">בעיטה</button><button id="punchBtn">אגרוף</button><button id="jumpBtn">קפיצה<em>פעמיים = סלטה</em></button></div></div>
+<div id="touchControls"><button class="run arcade" id="runBtn">רוץ<em>מחזיקים כדי לרוץ</em></button><div id="attack"><button id="powerBtn" class="fight special">כוח<em id="powerClock">מיוחד</em></button><button id="kickBtn" class="fight">בעיטה</button><button id="punchBtn" class="fight">אגרוף</button></div><button class="arcade" id="jumpBtn">קפיצה<em>לחיצה נוספת: פעלול</em></button></div>
 <div id="veil"><div id="panel">
 <h1>המרדף של קוזין</h1><p>אונליין · שני חברים בורחים יחד מקוזין</p><p class="muted">אותה גרפיקה ומנוע משחק מקוריים. כל אחד רואה את המצלמה שלו.</p>
 <div id="options"><label for="nickname">שם המשתמש במשחק</label><input id="nickname" readonly aria-readonly="true" placeholder="שם החשבון או שם זמני" maxlength="24" autocomplete="nickname"><p class="muted" id="accountNote">טוען את פרופיל השחקן...</p><div class="twocol"><div><label for="heroPicker">הדמות שלי</label><select id="hero" hidden aria-hidden="true"></select><button type="button" id="heroPicker" class="hero-picker" aria-haspopup="dialog"><canvas id="chosenHeroPortrait" width="74" height="74"></canvas><span id="chosenHeroName">בחר דמות</span><span class="chevron">⌄</span></button></div><div><label for="difficulty">רמת קושי</label><select id="difficulty"><option value="easy">קל</option><option value="normal" selected>בינוני</option><option value="hard">קשה</option><option value="impossible">בלתי אפשרי</option></select></div></div>
@@ -258,7 +274,7 @@ function scheduleWarmup(){
  warmupScheduled=true;
  const pump=()=>{
   warmupScheduled=false;
-  if(running&&!inCountdown())return;
+  if(running){warmupQueue.length=0;return;}
   const item=warmupQueue.shift();
   if(item&&frame?.wardrobe?.ready){
    try{frame.wardrobe.getFrame(item.hero,item.index,item.gear)}
@@ -295,7 +311,7 @@ function onMessage(m){
   if(m.status==='finished'){running=false;if(latest?.outcome)showResult(latest.outcome);else {roomView();$('readyBtn').style.display='none';$('againBtn').style.display='inline-flex';}}
   if(m.status==='running'){$('pauseChip').style.display=m.paused?'block':'none';if(!m.paused)playView();}
  }
- if(m.type==='started'){running=true;held=false;introStartedAt=performance.now();gameCanvasRevealed=false;introStage=-1;seq=0;latest=null;remote=null;smoothSelf=smoothChaser=smoothRemote=null;visualJump=null;lastSnapshotAt=0;lastPaintTime=0;if(frame?.game){frame.game.__onlineStarted=false;}activeRound=m.round||activeRound;revealGameCanvas();playView();announce('המרדף התחיל!');sendInput(false);}
+ if(m.type==='started'){warmupQueue.length=0;running=true;held=false;introStartedAt=performance.now();gameCanvasRevealed=false;introStage=-1;seq=0;latest=null;remote=null;smoothSelf=smoothChaser=smoothRemote=null;visualJump=null;lastSnapshotAt=0;lastPaintTime=0;if(frame?.game){frame.game.__onlineStarted=false;}activeRound=m.round||activeRound;revealGameCanvas();playView();announce('המרדף התחיל!');sendInput(false);}
  if(m.type==='snapshot'){
   if(!session||m.code!==session.code)return;if(activeRound&&m.round&&m.round!==activeRound)return;lastSnapshotAt=performance.now();const players=enrichedPlayers(m.players);rememberRoster(players);const wasFinished=latest?.outcome;latest={...m,players};
   if(!frame?.game||!appReady)return;
@@ -327,8 +343,14 @@ function showResult(outcome){
 }
 function patchRenderer(){
  if(renderInstalled||!frame)return;
- const r=frame.renderer,orig=r.draw,origCam=r.updateCamera;
+ const r=frame.renderer,orig=r.draw,origCam=r.updateCamera,origCapture=r.captureMotion;
  let remoteAvatar=null,remoteAvatarSource=null;
+ // The standalone engine runs a 120Hz simulation loop even though the
+ // multiplayer world is updated on the server. Avoid capturing throwaway
+ // interpolation snapshots 120 times a second inside the online iframe.
+ if(typeof origCapture==='function')r.captureMotion=function(g){
+  if(!g?.__onlineStarted)return origCapture.call(this,g);
+ };
  renderInstalled=true;
  // Keep authoritative server snapshots separate from display-only interpolation.
  const interp=(last,target,k)=>{
@@ -338,7 +360,11 @@ function patchRenderer(){
  };
  r.updateCamera=function(g,dt){
   if(!smoothSelf)return origCam.call(this,g,dt);
-  return origCam.call(this,{...g,player:{...g.player,x:smoothSelf.x,y:smoothSelf.y}},dt);
+  // No object graph allocation in the 120Hz camera path.
+  const x=g.player.x,y=g.player.y;
+  g.player.x=smoothSelf.x;g.player.y=smoothSelf.y;
+  try{return origCam.call(this,g,dt)}
+  finally{g.player.x=x;g.player.y=y}
  };
  // This is the actual draw entry point invoked by the original game's RAF.
  // Previously drawInterpolated existed but was never called, so all motion
@@ -349,9 +375,23 @@ function patchRenderer(){
   const ownGear=frame.wardrobe.equipped,other=remote;
   try{
    const displayOther=smoothRemote?{...other.player,x:smoothRemote.x,y:smoothRemote.y,phase:smoothRemote.phase}:other.player;
-   // Both players have independent cameras. Avoid expensive sprite drawing
-   // for a teammate who is entirely outside this player's visible scene.
-   if(!displayOther||displayOther.x<this.camera-120||displayOther.x>this.camera+this.width+120)return;
+   if(!displayOther)return;
+   // Server world coordinates are intentionally identical at the start.
+   // The old implementation painted transparent avatars on top of each other,
+   // making the teammate look invisible. Offset only the drawing while the
+   // players overlap; do NOT change their positions or shared physics.
+   const ownX=smoothSelf?.x??g.player.x,ownY=smoothSelf?.y??g.player.y;
+   const together=Math.abs(displayOther.x-ownX)<108&&Math.abs((displayOther.y||0)-(ownY||0))<100;
+   const toRight=(ownX-this.camera)<this.width-180;
+   const visualOffset=together?(toRight?108:-108):0;
+   const shownX=displayOther.x+visualOffset;
+   if(shownX<this.camera-100||shownX>this.camera+this.width+100){
+    const onRight=shownX>this.camera+this.width/2;
+    const tx=onRight?this.width-95:95;
+    const difference=Math.round(Math.abs(displayOther.x-ownX)/10);
+    this.text((onRight?'← ':'→ ')+(other.name||'חבר')+' '+difference+' מ׳',tx,Math.max(120,this.ground-245),15,'#8ef1ff',true);
+    return;
+   }
    if(remoteAvatarSource!==other){
     remoteAvatarSource=other;
     const otherHero=other.hero||roomRoster.get(other.id)?.hero||'luzo';
@@ -363,7 +403,8 @@ function patchRenderer(){
     };
    }
    frame.wardrobe.equipped=remoteAvatar.gear;
-   const proxy={...g,wallet:remoteAvatar.wallet,player:displayOther,
+   const shownPlayer=visualOffset?{...displayOther,x:shownX}:displayOther;
+   const proxy={...g,wallet:remoteAvatar.wallet,player:shownPlayer,
     power:Object.assign(remoteAvatar.power,g.power,other.power||{},{
      carrying:other.power?.type==='tzippy'&&(other.power?.remaining||0)>0,
      flying:!!other.power?.flying}),
@@ -373,9 +414,16 @@ function patchRenderer(){
    // Distinguish the teammate visually: never fade the local player's sprite.
    const ctx=this.ctx,oldAlpha=ctx.globalAlpha;
    ctx.save();
-   try{ctx.globalAlpha=oldAlpha*.56;this.character(proxy,false);}
-   finally{ctx.restore();}
-   this.text(remoteAvatar.label,displayOther.x-this.camera,this.ground-(displayOther.y||0)-199,16,'#8ef1ff',true);
+   try{
+    // Visual contrast keeps translucent teammates distinct on top of your hero.
+    ctx.globalAlpha=oldAlpha*.74;
+    this.character(proxy,false);
+    ctx.beginPath();
+    ctx.strokeStyle='#89f4ff';ctx.lineWidth=2.5;
+    ctx.ellipse(shownX-this.camera,this.ground-(shownPlayer.y||0)-101,43,96,0,0,Math.PI*2);
+    ctx.stroke();
+   }finally{ctx.restore();}
+   this.text(remoteAvatar.label,shownX-this.camera,this.ground-(shownPlayer.y||0)-210,16,'#8ef1ff',true);
   }catch(e){if(!this.remoteErrorLogged){console.warn('Kozin remote render error',e);this.remoteErrorLogged=true}}
   finally{frame.wardrobe.equipped=ownGear}
  };

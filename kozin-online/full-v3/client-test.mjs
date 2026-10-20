@@ -26,7 +26,7 @@ sync();
 assert.deepEqual(options.map(o=>o.value),['luzo']);
 assert.equal(elems.nickname.readOnly,false,'guest can enter an explicit temporary display name');
 assert.notEqual(elems.nickname.value,'אורח','do not invent a guest username');
-assert(html.includes("ctx.globalAlpha=oldAlpha*.56"),'only the remote avatar is translucent');
+assert(html.includes("ctx.globalAlpha=oldAlpha*.74"),'only the remote avatar is translucent');
 assert(html.includes("outcome.perPlayer?.[session.id]"),'win/loss checks current player id');
 
 const beginStart=html.indexOf('function beginRoom(kind){');
@@ -92,7 +92,7 @@ console.log('PASS synchronized colored countdown, blood-effect warning and local
   draw(g){draws++;renderedX=g.player.x},
   updateCamera(){},
   ctx:{globalAlpha:1,save(){},restore(){}},character(){},text(){},
-  width:1000,maxPixelBudget:540000,resize(){}
+  width:1000,camera:0,ground:520,maxPixelBudget:540000,resize(){}
  };
  const frame={renderer,wardrobe:{equipped:{}}};
  const context={
@@ -112,7 +112,35 @@ console.log('PASS synchronized colored countdown, blood-effect warning and local
  assert.equal(game.player.x,320,'display interpolation must not mutate authoritative game player');
  game.__onlineStarted=false;renderer.draw(game);
  assert.equal(draws,2,'normal original draw still works outside online mode');
+ // Regression for the invisible teammate when both people spawn at x=320.
+ // Check the actual renderer call, not just the existence of a CSS rule.
+ const avatarCalls=[],teammateLabels=[];
+ renderer.ctx.beginPath=()=>{};renderer.ctx.ellipse=()=>{};renderer.ctx.stroke=()=>{};
+ renderer.character=(proxy,isChaser)=>avatarCalls.push({x:proxy.player.x,y:proxy.player.y,hero:proxy.wallet.selected,isChaser});
+ renderer.text=(name,x)=>teammateLabels.push({name,x});
+ game.wallet={selected:'luzo'};
+ game.input={running:false};
+ context.remote={id:'friend',name:'חבר',hero:'tzippy',
+  player:{x:320,y:0,phase:0},power:{},combat:{},gear:{},run:false};
+ context.lastPaintTime=0;
+ game.__onlineStarted=true;
+ renderer.draw(game);
+ assert.equal(avatarCalls.length,1,'teammate avatar must be painted on an overlapping spawn');
+ assert(avatarCalls[0].x>400,'visually separate teammates that overlap in server space');
+ assert.equal(avatarCalls[0].hero,'tzippy','draw remote unlocked hero, not our own hero');
+ assert(teammateLabels.some(x=>x.name.includes('חבר')),'identify the teammate above their sprite');
+ assert.equal(context.remote.player.x,320,'never alter shared-world friend coordinates');
+ avatarCalls.length=0;teammateLabels.length=0;
+ context.remote={...context.remote,player:{x:20000,y:0}};
+ renderer.draw(game);
+ assert.equal(avatarCalls.length,0,'offscreen friend should not waste expensive character draws');
+ assert(teammateLabels.some(x=>x.name.includes('חבר')),'offscreen indicator must still show friend location');
 }
+assert(html.includes('#touchControls #runBtn{left:max(18px'),'run button physically matches original left corner');
+assert(html.includes('#touchControls #jumpBtn{right:max(18px'),'jump button physically matches original right corner');
+assert(html.includes('#touchControls #attack{position:absolute;top:44%'),'combat cluster matches original middle-right');
+assert(html.includes('const shownPlayer=visualOffset?'),'shared starting position must use draw-only separation');
+console.log('PASS teammate rendered and labeled at shared spawn, offscreen friend indicator, original arcade button layout');
 
 {
  const a=html.indexOf('const act=t=>');
