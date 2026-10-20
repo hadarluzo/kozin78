@@ -37,6 +37,7 @@ setTimeout(()=>{
  window.__noEagerIframe=(!iframe.getAttribute('src'));
  document.getElementById('nickname').value='בודק חדר';
  document.getElementById('createBtn').click();
+ if(new URLSearchParams(location.search).has('cancel'))setTimeout(()=>document.getElementById('cancelConnectBtn').click(),45);
 },140);
 setTimeout(()=>{
  const code=document.getElementById('roomCode').textContent;
@@ -70,8 +71,9 @@ const server=createServer((req,res)=>{
 });
 await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
 try{
- for(const reject of [false,true]){
-  const url='http://127.0.0.1:'+server.address().port+'/online.html?enter=1'+(reject?'&reject=1':'');
+ for(const mode of ['acknowledged','rejected','canceled']){
+  const reject=mode==='rejected',cancel=mode==='canceled';
+  const url='http://127.0.0.1:'+server.address().port+'/online.html?enter=1'+(reject?'&reject=1':cancel?'&cancel=1':'');
   const child=spawn(chromium,['--headless','--no-sandbox','--disable-gpu','--disable-dev-shm-usage',
    '--window-size=1108,512','--virtual-time-budget=1900','--dump-dom',url]);
   let out='',err='';
@@ -85,10 +87,15 @@ try{
   const raw=out.match(/<pre id="verification"[^>]*>([^<]+)<\/pre>/)?.[1];
   assert(raw,'No browser test output '+out.slice(-600));
   const data=JSON.parse(raw.replaceAll('&quot;','"').replaceAll('&amp;','&'));
-  console.log('ROOM_CREATE_BROWSER '+(reject?'rejected':'acknowledged')+' '+JSON.stringify(data));
+  console.log('ROOM_CREATE_BROWSER '+mode+' '+JSON.stringify(data));
   assert(data.noEagerIframe,'16MB game iframe must not load until a room is confirmed');
   assert(data.requestTypes.includes('create'),'Create Room sends actual server message');
-  if(reject){
+  if(cancel){
+   assert(!data.createDisabled,'Cancellation unlocks the button immediately');
+   assert.equal(data.createLabel,'צור חדר');
+   assert(data.note.includes('בוטל'),'Cancellation clearly acknowledged');
+   assert.equal(data.loadedAfterJoin,false,'Abandoned room must not download original game');
+  }else if(reject){
    assert(!data.createDisabled,'Buttons must be unlocked after server error');
    assert.equal(data.createLabel,'צור חדר','Label resets on error');
    assert(data.note.includes('דחה'),'User sees the actual error');
