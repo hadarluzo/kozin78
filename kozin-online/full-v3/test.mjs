@@ -41,6 +41,9 @@ for(const hero of ['michael','moreno']){const w=new FullWorld(profiles(hero),'ha
 }
 {
  const w=new FullWorld(profiles(),'normal',31337);
+ // Simulate an independent race after the shared start, where player B
+ // has pulled ahead. This tests per-player results rather than spawn offset.
+ w.games[1].player.x=w.games[0].player.x+160;
  w.time=12;w.chaser.x=w.games[0].player.x-65;
  w.step(1/120);
  assert.equal(w.outcome?.reason,'caught','one runner can be caught');
@@ -51,17 +54,21 @@ for(const hero of ['michael','moreno']){const w=new FullWorld(profiles(hero),'ha
 {
  const w=new FullWorld(profiles('luzo','tzippy'),'normal',909,{countdown:true});
  const firstX=w.games[0].player.x,friendX=w.games[1].player.x;
+ const firstY=w.games[0].player.y,friendY=w.games[1].player.y;
+ assert.equal(firstX,friendX,'both runners must stand on the exact same x-coordinate');
+ assert.equal(firstY,friendY,'both runners must stand on the exact same y-coordinate');
  const firstChaser=w.chaser.x;
  w.input('a',{run:true});w.input('b',{run:true});
  assert.equal(w.action('a','jump'),false,'jump must be blocked during countdown');
  assert.equal(w.action('a','power'),false,'powers must be blocked during countdown');
- for(let n=0;n<300;n++)w.step(1/60);
+ for(let n=0;n<230;n++)w.step(1/60);
  assert.equal(w.games[0].player.x,firstX,'runner cannot move during cinematic intro');
- assert.equal(w.games[1].player.x,friendX,'other runner cannot move during cinematic intro');
- assert.equal(w.chaser.x,firstChaser,'chaser must remain frozen until countdown ends');
- assert.equal(w.snapshot().startDelay,5,'server snapshots expose synchronized countdown duration');
- for(let n=0;n<3;n++)w.step(1/60);
+ assert.equal(w.games[1].player.x,friendX,'teammate cannot move during cinematic intro');
+ assert.equal(w.chaser.x,firstChaser,'chaser must remain frozen during countdown');
+ assert.equal(w.snapshot().startDelay,4,'server snapshots expose four-second synchronized countdown');
+ for(let n=0;n<20;n++)w.step(1/60);
  assert(w.games[0].player.x>firstX,'movement must be enabled after countdown');
- assert(w.games[1].player.x>friendX,'both runners start together');
+ assert(w.games[1].player.x>friendX,'both runners must launch with the same server start signal');
+ // Different unlocked characters may have different movement speeds after the shared start.
 }
 assert.equal(CATALOG.gear.length,13);console.log('PASS full engine: 8 heroes, 13 cosmetics, freeze, carry, taxi, shared food, Buddha, independent runners');
