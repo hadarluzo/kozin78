@@ -92,7 +92,7 @@ console.log('PASS synchronized colored countdown, blood-effect warning and local
   draw(g){draws++;renderedX=g.player.x},
   updateCamera(){},
   ctx:{globalAlpha:1,save(){},restore(){}},character(){},text(){},
-  width:1000,maxPixelBudget:540000,resize(){}
+  width:1000,camera:0,ground:520,maxPixelBudget:540000,resize(){}
  };
  const frame={renderer,wardrobe:{equipped:{}}};
  const context={
