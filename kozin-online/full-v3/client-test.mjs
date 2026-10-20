@@ -100,7 +100,7 @@ console.log('PASS synchronized colored countdown, blood-effect warning and local
   getOwn:()=>({run:true,currentSpeed:420,player:{jumps:0}}),held:true,
   smoothSelf:null,smoothChaser:null,smoothRemote:null,visualJump:null,
   lastPaintTime:0,lastSnapshotAt:100,frameCount:0,frameSum:0,frameSampleAt:0,
-  performance:{now:125},q:new URLSearchParams(''),pingMs:4,
+  performance:{now:()=>125},q:new URLSearchParams(''),pingMs:4,
   heroName:s=>s,$:()=>({style:{},textContent:''}),
   consecutiveFastSamples:0
  };
