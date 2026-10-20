@@ -72,5 +72,11 @@ assert(html.includes('await Promise.race([Promise.resolve(bridge.game.wallet.rea
 assert(html.includes('if(autoReadyWhenLoaded&&room?.status==='),'autostart waits for game renderer');
 assert(html.includes('else if(!session&&profile&&!room'),'initial connection retries when Render wakes');
 console.log('PASS create-room fallback with unloaded game, guest naming, websocket send, join validation and delayed readiness');
+assert(html.includes("const INTRO_LINES=['3','2','1','רוצו על נפשותיכם מהמפלצת!!']"),'race warning has the requested countdown order');
+assert(html.includes('count count-red')&&html.includes('count count-yellow')&&html.includes('count count-green'),'countdown stages are visually color-coded');
+assert(html.includes('.intro-overlay.go #introText::after'),'blood drip decoration is displayed only on the GO warning');
+assert(html.includes("if(v&&inCountdown())return"),'run button is locked while countdown is displayed');
+assert(html.includes("if(!running||inCountdown())return"),'actions are locked while countdown is displayed');
+console.log('PASS synchronized colored countdown, blood-effect warning and locally locked controls');
 console.log('PASS named account, owned-hero gallery, guest fallback, remote transparency and per-player results');
 
