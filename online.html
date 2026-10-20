@@ -340,11 +340,11 @@ function onMessage(m){
   room=m;rememberRoster(m.players);
   if(m.status==='waiting'&&appReady)
    for(const p of m.players||[])warmupHero(p.hero,p.gear||{});activeRound=m.round||activeRound;$('roomCode').textContent=m.code;$('waitingPlayers').textContent=(m.players||[]).map(p=>`${p.name} (${heroName(p.hero)}) ${p.connected?'●':'◌'} ${p.ready?'✓ מוכן':'ממתין'}`).join('  |  ');ready=!!m.players?.find(p=>p.id===session?.id)?.ready;$('readyBtn').textContent=ready?'מוכן ✓':'אני מוכן';
-  if(m.status==='waiting'){introStartedAt=0;running=false;latest=null;remote=null;smoothSelf=smoothChaser=smoothRemote=null;roomView();$('readyBtn').style.display='inline-flex';$('againBtn').style.display='none';if(autoReadyWhenLoaded&&!appReady)$('readyBtn').textContent='ממתין לטעינת המשחק…';announce(appReady?'שני שחקנים צריכים ללחוץ ״אני מוכן״':'החדר מחובר. טוען גרפיקה ודמויות לפני תחילת המרדף…');}
+  if(m.status==='waiting'){renderedSelf=null;renderedFriend=null;introStartedAt=0;running=false;latest=null;remote=null;smoothSelf=smoothChaser=smoothRemote=null;roomView();$('readyBtn').style.display='inline-flex';$('againBtn').style.display='none';if(autoReadyWhenLoaded&&!appReady)$('readyBtn').textContent='ממתין לטעינת המשחק…';announce(appReady?'שני שחקנים צריכים ללחוץ ״אני מוכן״':'החדר מחובר. טוען גרפיקה ודמויות לפני תחילת המרדף…');}
   if(m.status==='finished'){running=false;if(latest?.outcome)showResult(latest.outcome);else {roomView();$('readyBtn').style.display='none';$('againBtn').style.display='inline-flex';}}
   if(m.status==='running'){$('pauseChip').style.display=m.paused?'block':'none';playView();}
  }
- if(m.type==='started'){warmupQueue.length=0;running=true;held=false;introStartedAt=performance.now();gameCanvasRevealed=false;introStage=-1;seq=0;latest=null;remote=null;smoothSelf=smoothChaser=smoothRemote=null;visualJump=null;lastSnapshotAt=0;lastPaintTime=0;if(frame?.game){frame.game.__onlineStarted=false;}activeRound=m.round||activeRound;revealGameCanvas();playView();announce('המרדף התחיל!');sendInput(false);}
+ if(m.type==='started'){renderedSelf=null;renderedFriend=null;warmupQueue.length=0;running=true;held=false;introStartedAt=performance.now();gameCanvasRevealed=false;introStage=-1;seq=0;latest=null;remote=null;smoothSelf=smoothChaser=smoothRemote=null;visualJump=null;lastSnapshotAt=0;lastPaintTime=0;if(frame?.game){frame.game.__onlineStarted=false;}activeRound=m.round||activeRound;revealGameCanvas();playView();announce('המרדף התחיל!');sendInput(false);}
  if(m.type==='snapshot'){
   if(!session||m.code!==session.code)return;if(activeRound&&m.round&&m.round!==activeRound)return;lastSnapshotAt=performance.now();if(!introStartedAt&&!m.outcome)introStartedAt=lastSnapshotAt;const players=enrichedPlayers(m.players);rememberRoster(players);const wasFinished=latest?.outcome;latest={...m,players};
   if(!frame?.game||!appReady)return;
@@ -374,174 +374,164 @@ function showResult(outcome){
  $('veil').classList.add('hidden');
  $('startupChip').style.display='none';
 }
+// Multiplayer has ONE animation loop. The embedded original game is an asset
+// library and canvas only; its standalone game loop is suspended on setup.
+let cleanAnimationStarted=false,renderedSelf=null,renderedFriend=null;
+let onlineFrames=0,onlineSampleStart=0,lastOnlineFrame=0;
+let lastOnlineDebug=0,remoteRenderFailure=null;
 function patchRenderer(){
  if(renderInstalled||!frame)return;
- const r=frame.renderer,orig=r.draw,origCam=r.updateCamera,origCapture=r.captureMotion;
- let remoteAvatar=null,remoteAvatarSource=null;
- // The standalone engine runs a 120Hz simulation loop even though the
- // multiplayer world is updated on the server. Avoid capturing throwaway
- // interpolation snapshots 120 times a second inside the online iframe.
- if(typeof origCapture==='function')r.captureMotion=function(g){
-  if(!g?.__onlineStarted)return origCapture.call(this,g);
- };
  renderInstalled=true;
- // Keep authoritative server snapshots separate from display-only interpolation.
- const interp=(last,target,k)=>{
-  if(!target)return null;
-  if(!last||!Number.isFinite(last.x)||Math.abs(target.x-last.x)>1500)return {x:target.x,y:target.y||0,phase:target.phase||0};
-  return {x:last.x+(target.x-last.x)*k,y:last.y+((target.y||0)-last.y)*k,phase:last.phase+((target.phase||0)-last.phase)*k};
- };
- r.updateCamera=function(g,dt){
-  if(!smoothSelf)return origCam.call(this,g,dt);
-  // No object graph allocation in the 120Hz camera path.
-  const x=g.player.x,y=g.player.y;
-  g.player.x=smoothSelf.x;g.player.y=smoothSelf.y;
-  try{return origCam.call(this,g,dt)}
-  finally{g.player.x=x;g.player.y=y}
- };
- // This is the actual draw entry point invoked by the original game's RAF.
- // Previously drawInterpolated existed but was never called, so all motion
- // jumped between 20 Hz snapshots regardless of screen FPS.
- const paintScene=function(g){
-  orig.call(this,g);
-  if(!remote||g.state!=='playing')return;
-  const ownGear=frame.wardrobe.equipped,other=remote;
-  try{
-   const displayOther=smoothRemote?{...other.player,x:smoothRemote.x,y:smoothRemote.y,phase:smoothRemote.phase}:other.player;
-   if(!displayOther)return;
-   // Server world coordinates are intentionally identical at the start.
-   // The old implementation painted transparent avatars on top of each other,
-   // making the teammate look invisible. Offset only the drawing while the
-   // players overlap; do NOT change their positions or shared physics.
-   const ownX=smoothSelf?.x??g.player.x,ownY=smoothSelf?.y??g.player.y;
-   const together=Math.abs(displayOther.x-ownX)<108&&Math.abs((displayOther.y||0)-(ownY||0))<100;
-   const toRight=(ownX-this.camera)<this.width-180;
-   const visualOffset=together?(toRight?108:-108):0;
-   const shownX=displayOther.x+visualOffset;
-   if(shownX<this.camera-100||shownX>this.camera+this.width+100){
-    const onRight=shownX>this.camera+this.width/2;
-    const tx=onRight?this.width-95:95;
-    const difference=Math.round(Math.abs(displayOther.x-ownX)/10);
-    this.text((onRight?'← ':'→ ')+(other.name||'חבר')+' '+difference+' מ׳',tx,Math.max(120,this.ground-245),15,'#8ef1ff',true);
-    return;
-   }
-   if(remoteAvatarSource!==other){
-    remoteAvatarSource=other;
-    const otherHero=other.hero||roomRoster.get(other.id)?.hero||'luzo';
-    remoteAvatar={
-     hero:otherHero,
-     gear:{...(roomRoster.get(other.id)?.gear||{}),...(other.gear||{})},
-     label:(other.name||'שחקן')+' · '+heroName(otherHero),
-     wallet:{...g.wallet,selected:otherHero},input:{running:false},combat:{},power:{}
-    };
-   }
-   frame.wardrobe.equipped=remoteAvatar.gear;
-   const shownPlayer=visualOffset?{...displayOther,x:shownX}:displayOther;
-   const proxy={...g,wallet:remoteAvatar.wallet,player:shownPlayer,
-    power:Object.assign(remoteAvatar.power,g.power,other.power||{},{
-     carrying:other.power?.type==='tzippy'&&(other.power?.remaining||0)>0,
-     flying:!!other.power?.flying}),
-    combat:Object.assign(remoteAvatar.combat,g.combat,other.combat||{}),
-    input:remoteAvatar.input,grace:0};
-   proxy.input.running=!!other.run;
-   // Distinguish the teammate visually: never fade the local player's sprite.
-   const ctx=this.ctx,oldAlpha=ctx.globalAlpha;
-   ctx.save();
-   try{
-    // Visual contrast keeps translucent teammates distinct on top of your hero.
-    ctx.globalAlpha=oldAlpha*.74;
-    this.character(proxy,false);
-    ctx.beginPath();
-    ctx.strokeStyle='#89f4ff';ctx.lineWidth=2.5;
-    ctx.ellipse(shownX-this.camera,this.ground-(shownPlayer.y||0)-101,43,96,0,0,Math.PI*2);
-    ctx.stroke();
-   }finally{ctx.restore();}
-   this.text(remoteAvatar.label,shownX-this.camera,this.ground-(shownPlayer.y||0)-210,16,'#8ef1ff',true);
-  }catch(e){if(!this.remoteErrorLogged){console.warn('Kozin remote render error',e);this.remoteErrorLogged=true}}
-  finally{frame.wardrobe.equipped=ownGear}
- };
- r.draw=function(g){
-  if(g?.__onlineStarted&&g.state==='playing'&&running&&latest)
-   return this.drawInterpolated(g);
-  return paintScene.call(this,g);
- };
- r.drawInterpolated=function(g){
-  if(g.state!=='playing'){paintScene.call(this,g);return}
-  const now=performance.now(),dt=lastPaintTime?Math.min(.05,Math.max(.001,(now-lastPaintTime)/1000)):1/60;
-  lastPaintTime=now;
-  // Predict a short local movement slice between 20Hz authoritative updates.
-  // The actual world, collisions, scoring and progress remain server-controlled.
-  const snapshotAge=Math.max(0,(now-lastSnapshotAt)/1000);
-  const age=Math.min(.15,snapshotAge);
-  const me=getOwn();
-  const serverSpeed=Number(me?.currentSpeed)||0;
-  const baseSpeed=Math.max(0,Number(g.profile?.speed)||425)*(1+(Number(g.profile?.growth)||0)*Math.min(1,(g.time||0)/120));
-  const localSpeed=held&&!g.player.blocked?baseSpeed*(g.player.slow>0?.52:1)*(g.power?.worldScale||1):0;
-  const speed=held?(me?.run?Math.max(0,Math.min(750,serverSpeed||localSpeed)):localSpeed):0;
-  const targetX=g.player.x+speed*age;
-  const predY=((g.player.jumps||0)>0||g.player.y>0)?Math.max(0,g.player.y+(g.player.vy||0)*age-775*age*age):g.player.y;
-  let predicted={...g.player,x:targetX,y:predY};
-  if(visualJump&&now-visualJump.at<800&&(me?.player?.jumps||0)<visualJump.predictedJumps){
-   const t=(now-visualJump.at)/1000;
-   predicted.y=Math.max(predicted.y,visualJump.y+visualJump.vy*t-775*t*t);
-   predicted.vy=visualJump.vy-1550*t;
-   predicted.jumps=visualJump.predictedJumps;
+ const r=frame.renderer;
+ const originalDraw=r.draw.bind(r);
+ const originalUpdateCamera=r.updateCamera.bind(r);
+ const defaultGear=frame.wardrobe.equipped;
+ let previousRemoteId=null,remoteAppearance=null;
+
+ function paintTeammate(game,friend){
+  const canvasCtx=r.ctx,camera=r.camera;
+  const hero=friend.hero||roomRoster.get(friend.id)?.hero||'luzo';
+  const name=(friend.name||roomRoster.get(friend.id)?.name||'חבר')+' · '+heroName(hero);
+  const source=friend.player;
+  if(!source||!Number.isFinite(source.x))return;
+  const now=performance.now();
+  const age=Math.min(.085,Math.max(0,(now-lastSnapshotAt)/1000));
+  const nextX=source.x+(friend.run?Math.min(700,Number(friend.currentSpeed)||425)*age:0);
+  const nextY=Math.max(0,source.y||0);
+  if(!renderedFriend||Math.abs(renderedFriend.x-nextX)>500||previousRemoteId!==friend.id)
+   renderedFriend={x:nextX,y:nextY,phase:source.phase||0};
+  else{
+   const dt=Math.min(.06,(now-lastOnlineFrame)/1000||.016);
+   const factor=1-Math.exp(-16*dt);
+   renderedFriend.x+=(nextX-renderedFriend.x)*factor;
+   renderedFriend.y+=(nextY-renderedFriend.y)*factor;
+   renderedFriend.phase+=(Number(source.phase||0)-renderedFriend.phase)*factor;
   }
-  if(visualJump&&(now-visualJump.at>800||(me?.player?.jumps||0)>=visualJump.predictedJumps))visualJump=null;
-  // Keep the displayed player moving at frame rate, then reconcile gradually
-  // to authoritative collision and physics snapshots; never mutate the server state.
-  const k=1-Math.exp(-22*dt);
-  if(!smoothSelf||!Number.isFinite(smoothSelf.x)||Math.abs(smoothSelf.x-targetX)>220){
-   smoothSelf={x:targetX,y:predicted.y,phase:predicted.phase||0,jumps:predicted.jumps||0,vy:predicted.vy||0};
+  if(previousRemoteId!==friend.id){
+   previousRemoteId=friend.id;
+   remoteAppearance={wallet:{...game.wallet,selected:hero},
+    gear:{...(roomRoster.get(friend.id)?.gear||{}),...(friend.gear||{})},
+    power:{},combat:{},input:{running:false}};
+  }
+  const ownX=renderedSelf?.x??game.player.x;
+  const overlap=Math.abs(renderedFriend.x-ownX)<94&&Math.abs(renderedFriend.y-(renderedSelf?.y??game.player.y))<85;
+  // Both game actors remain at the exact same server coordinates; this is
+  // ONLY a visual side-step to ensure neither actor covers the other.
+  const visibleX=renderedFriend.x+(overlap?104:0);
+  const screenX=visibleX-camera,feetY=r.ground-renderedFriend.y;
+  const margin=95;
+  if(screenX<-margin||screenX>r.width+margin){
+   const edge=screenX<0?Math.min(85,r.width*.1):r.width-Math.min(85,r.width*.1);
+   r.text((screenX<0?'→ ':'← ')+name,edge,Math.max(95,r.ground-204),15,'#8bf8ff',true);
+   return;
+  }
+  // Draw an always-visible cyan silhouette under the original sprite. If a
+  // particular original hero sheet is still loading, this silhouette and name
+  // prevent the other player disappearing into the background.
+  canvasCtx.save();
+  try{
+   canvasCtx.globalAlpha=.88;
+   canvasCtx.fillStyle='#28c2e8';
+   canvasCtx.beginPath();canvasCtx.ellipse(screenX,feetY-140,23,23,0,0,Math.PI*2);canvasCtx.fill();
+   canvasCtx.fillRect(screenX-21,feetY-120,42,83);
+   canvasCtx.globalAlpha=.32;
+   canvasCtx.fillRect(screenX-28,feetY-36,56,27);
+  }finally{canvasCtx.restore()}
+  const ownGear=frame.wardrobe.equipped;
+  frame.wardrobe.equipped=remoteAppearance.gear;
+  try{
+   Object.assign(remoteAppearance.power,game.power,friend.power||{});
+   Object.assign(remoteAppearance.combat,game.combat,friend.combat||{});
+   remoteAppearance.input.running=!!friend.run;
+   const player={...source,x:visibleX,y:renderedFriend.y,phase:renderedFriend.phase};
+   const actor={...game,player,wallet:remoteAppearance.wallet,
+    power:remoteAppearance.power,combat:remoteAppearance.combat,
+    input:remoteAppearance.input,grace:0};
+   canvasCtx.save();
+   try{canvasCtx.globalAlpha=.85;r.character(actor,false)}
+   finally{canvasCtx.restore()}
+   remoteRenderFailure=null;
+  }catch(error){
+   if(!remoteRenderFailure || remoteRenderFailure!==String(error)){
+    remoteRenderFailure=String(error);
+    console.warn('Remote character could not be drawn; cyan fallback is visible',error);
+   }
+  }finally{frame.wardrobe.equipped=ownGear}
+  r.text(name,screenX,feetY-214,16,'#8bf8ff',true);
+  canvasCtx.strokeStyle='#64ecff';canvasCtx.lineWidth=2;
+  canvasCtx.strokeRect(screenX-34,feetY-198,68,166);
+ }
+ r.drawInterpolated=function(game){
+  if(game.state!=='playing'){return}
+  const now=performance.now(),dt=Math.min(.05,Math.max(.001,(now-lastOnlineFrame)/1000||.016));
+  const age=Math.min(.10,Math.max(0,(now-lastSnapshotAt)/1000));
+  const serverX=Number(game.player.x)||320;
+  const serverY=Number(game.player.y)||0;
+  const speed=held?Math.max(0,Math.min(750,Number(getOwn()?.currentSpeed)||Number(game.profile?.speed)||425)):0;
+  const targetX=serverX+speed*age;
+  const targetY=Math.max(0,serverY+(game.player.vy||0)*age-(game.player.jumps?775*age*age:0));
+  if(!renderedSelf||Math.abs(renderedSelf.x-targetX)>220){
+   renderedSelf={x:targetX,y:targetY,phase:game.player.phase||0};
   }else{
-   const oldX=smoothSelf.x;
-   // Local movement runs every frame; server snapshots only correct drift.
-   smoothSelf.x+=snapshotAge<.25?Math.min(800,localSpeed)*dt:0;
-   const dx=targetX-smoothSelf.x;
-   if(Math.abs(dx)>115)smoothSelf.x+=Math.sign(dx)*Math.min(Math.abs(dx)-115,120*dt);
-   else smoothSelf.x+=dx*(1-Math.exp(-6*dt));
-   const jumpPending=visualJump&&visualJump.predictedJumps>(me?.player?.jumps||0);
-   smoothSelf.y+=(predicted.y-smoothSelf.y)*(1-Math.exp(-(jumpPending?54:25)*dt));
-   smoothSelf.phase=(smoothSelf.phase||0)+Math.max(0,smoothSelf.x-oldX)/30;
-   smoothSelf.jumps=predicted.jumps||0;
-   smoothSelf.vy=predicted.vy||0;
+   if(held && age<.15)renderedSelf.x+=speed*dt;
+   renderedSelf.x+=(targetX-renderedSelf.x)*(1-Math.exp(-8*dt));
+   renderedSelf.y+=(targetY-renderedSelf.y)*(1-Math.exp(-25*dt));
+   renderedSelf.phase+=(Number(game.player.phase||0)-renderedSelf.phase)*(1-Math.exp(-15*dt));
   }
-    smoothChaser=interp(smoothChaser,g.chaser,k);
-  let remoteTarget=remote?.player||null;
-  if(remoteTarget){
-   const vx=Number(remote.currentSpeed)||0;
-   const rx=(remote.run&&vx>0)?remoteTarget.x+Math.min(900,vx)*Math.min(.095,age):remoteTarget.x;
-   remoteTarget={...remoteTarget,x:rx,phase:(remoteTarget.phase||0)+Math.max(0,rx-remoteTarget.x)/30};
+  // Always show an immediate jump on touch, without waiting for a snapshot.
+  if(visualJump && now-visualJump.at<800){
+   const t=(now-visualJump.at)/1000;
+   renderedSelf.y=Math.max(renderedSelf.y,visualJump.y+visualJump.vy*t-775*t*t);
   }
-  smoothRemote=remoteTarget?interp(smoothRemote,remoteTarget,k):null;
-  frameCount++;frameSum+=dt;
-  if(!frameSampleAt)frameSampleAt=now;
-  if(now-frameSampleAt>2500){
-   const fps=frameCount/Math.max(.01,(now-frameSampleAt)/1000);
-   if(q.get('debug')==='1'){$('perfTag').style.display='block';$('perfTag').textContent='FPS '+Math.round(fps)+' · PING '+(pingMs==null?'--':Math.round(pingMs))+'ms · SNAP '+Math.round(Math.max(0,now-lastSnapshotAt))+'ms';}
-   // Lower resolution only after a sustained real frame-rate drop, not a single
-   // expensive frame. Re-evaluate slowly to avoid resize/quality oscillation.
-   if(fps<47&&frame.renderer.maxPixelBudget>450000){
-    consecutiveFastSamples=0;
-    frame.renderer.maxPixelBudget=Math.max(450000,Math.round(frame.renderer.maxPixelBudget*.82));
-    frame.renderer.resize();
-   }else if(fps>58){
-    consecutiveFastSamples++;
-    if(consecutiveFastSamples>=5&&frame.renderer.maxPixelBudget<(matchMedia('(pointer:coarse)').matches?680000:900000)){
-     frame.renderer.maxPixelBudget=Math.min(matchMedia('(pointer:coarse)').matches?680000:900000,Math.round(frame.renderer.maxPixelBudget*1.12));
-     frame.renderer.resize();consecutiveFastSamples=0;
-    }
-   }else consecutiveFastSamples=0;
-   frameCount=0;frameSum=0;frameSampleAt=now;
-  }
-  const priorPlayer=g.player,priorChaser=g.chaser;
+  if(visualJump && now-visualJump.at>=800)visualJump=null;
+  const player=game.player,chaser=game.chaser;
+  const ox=player.x,oy=player.y,op=player.phase;
+  const cameraY=r.camera;
+  player.x=renderedSelf.x;player.y=renderedSelf.y;player.phase=renderedSelf.phase;
   try{
-   g.player={...priorPlayer,...smoothSelf};
-   g.chaser={...priorChaser,...smoothChaser};
-   paintScene.call(this,g);
-  }finally{g.player=priorPlayer;g.chaser=priorChaser}
+   originalUpdateCamera(game,dt);
+   originalDraw(game);
+   const other=remote||latest?.players?.find(p=>p.id!==session?.id);
+   if(other)paintTeammate(game,other);
+   else if(latest?.players?.length>1)
+    r.text('החבר מתחבר…',r.width-120,Math.max(95,r.ground-200),15,'#8bf8ff',true);
+  }finally{
+   player.x=ox;player.y=oy;player.phase=op;
+  }
+  lastOnlineFrame=now;
+  onlineFrames++;
+  if(!onlineSampleStart)onlineSampleStart=now;
+  if(now-onlineSampleStart>2000){
+   if(q.get('debug')==='1'){
+    $('perfTag').style.display='block';
+    $('perfTag').textContent='FPS '+Math.round(onlineFrames*1000/(now-onlineSampleStart))+
+     ' · PING '+(pingMs==null?'--':Math.round(pingMs))+'ms';
+   }
+   onlineFrames=0;onlineSampleStart=now;
+  }
  };
+ // Preserve the rendering entry point for existing tests and manual calls.
+ r.draw=function(game){if(game?.__onlineStarted&&running&&latest)return r.drawInterpolated(game);return originalDraw(game)};
 }
+function startCleanRenderer(){
+ if(cleanAnimationStarted)return;
+ cleanAnimationStarted=true;
+ let previousPaint=0;
+ const runFrame=timestamp=>{
+  requestAnimationFrame(runFrame);
+  if(!frame?.game||!running||!latest||latest.outcome)return;
+  // 30 fps is a stable target for older iPhones at reduced GPU resolution.
+  // The old embedded game loop was painting 60+ times AND running a redundant
+  // 120 Hz accumulator while also receiving network snapshots.
+  const mobile=matchMedia('(pointer:coarse)').matches;
+  const interval=mobile?1000/30:1000/45;
+  if(timestamp-previousPaint<interval)return;
+  previousPaint=timestamp;
+  frame.renderer.drawInterpolated(frame.game);
+ };
+ requestAnimationFrame(runFrame);
+}
+
 function revealGameCanvas(){if(gameCanvasRevealed)return;const doc=$('original').contentDocument;if(!doc?.body)return;gameCanvasRevealed=true;
  // The original lobby leaves body.home active even after the multiplayer engine starts.
  // That class applies blur(13px) and brightness(.2) to the entire game canvas.
@@ -549,7 +539,11 @@ function revealGameCanvas(){if(gameCanvasRevealed)return;const doc=$('original')
  const canvas=doc.getElementById('game');if(canvas){canvas.style.setProperty('filter','none','important');canvas.style.setProperty('transform','none','important');}
 }
 function updateGame(m){const me=m.players.find(p=>p.id===session?.id),other=m.players.find(p=>p.id!==session?.id);if(!me||!frame)return;const g=frame.game;
- if(!g.__onlineStarted){g.difficulty=m.difficulty||'normal';g.start();g.update=()=>{};g.events=[];g.__onlineStarted=true;frame.renderer.reset(g)}
+ if(!g.__onlineStarted){
+ g.difficulty=m.difficulty||'normal';g.start();
+ g.update=()=>{};g.events=[];g.__onlineStarted=true;
+ renderedSelf=null;renderedFriend=null;frame.renderer.reset(g);
+}
  revealGameCanvas();g.state='playing';g.wallet.selected=me.hero;Object.assign(g.player,me.player);g.power=Object.assign(g.power,me.power||{});
  g.combat=Object.assign(g.combat,me.combat||{});g.combat.enemies=m.enemies||[];Object.assign(g.chaser,m.chaser);g.boss=Object.assign(g.boss,m.boss||{});
  g.obstacles=m.obstacles||[];g.foods=m.foods||[];g.mapIndex=m.mapIndex||0;g.distance=me.distance||0;g.time=m.time||0;
@@ -640,8 +634,18 @@ frame=bridge;appReady=true;
 // invisible in online mode and waste CPU/GPU time beside multiplayer drawing.
 if(typeof bridge.wardrobe.animatePreview==='function')bridge.wardrobe.animatePreview=()=>{};
 // Online-only pixel cap: the original 4K canvas can stall desktop browsers when running inside an iframe.
-const baseResize=bridge.renderer.resize;bridge.renderer.maxPixelBudget=matchMedia('(pointer:coarse)').matches?540000:900000;
-bridge.renderer.resize=function(...args){baseResize.apply(this,args);const pixels=this.canvas.width*this.canvas.height;if(pixels>this.maxPixelBudget){const scale=Math.sqrt(this.maxPixelBudget/pixels);this.canvas.width=Math.round(this.canvas.width*scale);this.canvas.height=Math.round(this.canvas.height*scale);this.dpr*=scale;}};bridge.renderer.resize();$('splash').style.display='none';$('options').style.display=room?'none':'block';
+const baseResize=bridge.renderer.resize;bridge.renderer.maxPixelBudget=matchMedia('(pointer:coarse)').matches?260000:650000;
+bridge.renderer.resize=function(...args){baseResize.apply(this,args);const pixels=this.canvas.width*this.canvas.height;if(pixels>this.maxPixelBudget){const scale=Math.sqrt(this.maxPixelBudget/pixels);this.canvas.width=Math.round(this.canvas.width*scale);this.canvas.height=Math.round(this.canvas.height*scale);this.dpr*=scale;}};bridge.renderer.resize();
+ // Stop the original standalone animation loop. Multiplayer owns exactly
+ // one paced RAF, while the original renderer/assets remain untouched.
+ const originalRAF=f.requestAnimationFrame.bind(f);
+ f.requestAnimationFrame=function(callback){
+  if(callback===f.frame||callback?.name==='frame')return 0;
+  return originalRAF(callback);
+ };
+ patchRenderer();
+ startCleanRenderer();
+ $('splash').style.display='none';$('options').style.display=room?'none':'block';
  if(room&&profile){$('hero').value=profile.hero;}// Honor the hero already sent to the server.
  syncAccountProfile();
  // Pre-render unlocked equipped sprites before anyone is ready to race.
