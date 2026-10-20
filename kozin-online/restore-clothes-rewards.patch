@@ -1,0 +1,111 @@
+diff --git a/index.html b/index.html
+index 6192099..63bc211 100644
+--- a/index.html
++++ b/index.html
+@@ -1005,2 +1005,2 @@ const HEROES = Object.freeze({
+-  michael:{name:'מיכאל',price:1000,power:'קוד קארה',icon:'⌨',cooldown:45,duration:10,color:'#96c3ab',description:'מקליד במקלדת: קוזין מאט לשתי שניות ומקבל שיער קארה לעשר שניות. הגוף והמצב שלו נשארים כמו שהם.'},
+-  moreno:{name:'מורנו',power:'זה לא מורנו!',icon:'◆',cooldown:40,duration:15,color:'#d8b6ff',description:'״זה לא מורנו זה פורנו!״ קוזין נשאר בבוקסר ל־15 שניות, נבהל ומאט לרגע.'}
++  michael:{name:'מיכאל',price:1000,power:'קוד קארה',icon:'⌨',cooldown:45,duration:10,color:'#96c3ab',description:'מקליד במקלדת: קוזין קופא במקום לשנייה ומקבל שיער קארה לעשר שניות. הגוף והמצב שלו נשארים כמו שהם.'},
++  moreno:{name:'מורנו',power:'זה לא מורנו!',icon:'◆',cooldown:40,duration:15,color:'#d8b6ff',description:'״זה לא מורנו זה פורנו!״ קוזין נשאר בבוקסר ל־15 שניות, קופא במקום לשנייה.'}
+@@ -1011,0 +1012,5 @@ const GEAR = [
++{id:'dogs',name:'פוטר דוברמן שחור',price:600,slot:'outfit',store:'zanos',tile:9},
++{id:'paisley',name:'מעיל פייזלי קיופיד',price:600,slot:'outfit',store:'motagos',tile:10},
++{id:'tekhelet',name:'ציצית פתיל תכלת',price:600,slot:'fringe',store:'motagos',tile:11},
++{id:'kozinshoe',name:'הנעל של קוזין',price:450,slot:'feet',store:'zanos',tile:12},
++
+@@ -1193,2 +1198,2 @@ class SessionWallet {
+- restore(){try{const p=JSON.parse(localStorage.getItem(this.key)||'null');if(p){this.balance=Math.max(0,Number(p.balance)||0);this.earned=Math.max(0,Number(p.earned)||0);this.best=Math.min(100,Math.max(0,Number(p.best)||0));this.level=Math.max(1,Math.floor(Number(p.level)||1));this.xp=Math.max(0,Math.floor(Number(p.xp)||0));this.name=String(p.name||'שחקן חדש').slice(0,24);this.owned=new Set(['luzo',...(p.owned||[]).filter(id=>HEROES[id])]);this.selected=this.owned.has(p.selected)?p.selected:'luzo';this.pending=Math.max(0,Number(p.pending)||0);this.queue=Array.isArray(p.queue)?p.queue:[];}}catch{} }
+- save(){try{localStorage.setItem(this.key,JSON.stringify({balance:this.balance,earned:this.earned,best:this.best,level:this.level,xp:this.xp,name:this.name,owned:[...this.owned],selected:this.selected,pending:this.pending,queue:this.queue}));}catch{this.message='לא ניתן לשמור בדפדפן הזה. בדקו שהשמירה המקומית מופעלת.';} }
++ restore(){try{const p=JSON.parse(localStorage.getItem(this.key)||'null');if(p){this.balance=Math.max(0,Number(p.balance)||0);this.earned=Math.max(0,Number(p.earned)||0);this.best=Math.min(100,Math.max(0,Number(p.best)||0));this.level=Math.max(1,Math.floor(Number(p.level)||1));this.xp=Math.max(0,Math.floor(Number(p.xp)||0));this.name=String(p.name||'שחקן חדש').slice(0,24);this.owned=new Set(['luzo',...(p.owned||[]).filter(id=>HEROES[id])]);this.selected=this.owned.has(p.selected)?p.selected:'luzo';this.pending=Math.max(0,Number(p.pending)||0);this.queue=Array.isArray(p.queue)?p.queue:[];this.onlineReceipts=p.onlineReceipts&&typeof p.onlineReceipts==='object'?p.onlineReceipts:{};}}catch{} }
++ save(){try{localStorage.setItem(this.key,JSON.stringify({balance:this.balance,earned:this.earned,best:this.best,level:this.level,xp:this.xp,name:this.name,owned:[...this.owned],selected:this.selected,pending:this.pending,queue:this.queue,onlineReceipts:this.onlineReceipts||{}}));}catch{this.message='לא ניתן לשמור בדפדפן הזה. בדקו שהשמירה המקומית מופעלת.';} }
+@@ -1307,0 +1313 @@ SessionWallet.prototype.cloudLoad=async function(){if(TEST_MODE)return;
++ try{this.onlineReceipts=JSON.parse(localStorage.getItem(this.key)||'null')?.onlineReceipts||{};}catch{this.onlineReceipts={};}
+@@ -1488 +1494 @@ class RunnerGame {
+-    this.chaser.gap=Math.min(CONFIG.maxGap,this.chaser.gap+10);
++    this.chaser.gap=Math.min(Math.max(CONFIG.maxGap,this.chaser.gap),this.chaser.gap+10);
+@@ -1533 +1539 @@ class RunnerGame {
+-      this.power.update(this,dt);dt*=this.power.worldScale;
++      const freezeStep=Math.min(dt,this.power.freezeRemaining||0),frozenY=k.y,frozenPhase=k.phase;this.power.update(this,dt);dt*=this.power.worldScale;
+@@ -1571 +1577 @@ class RunnerGame {
+-        k.gap=clamp(k.gap+((this.combat.wipe>0?36:this.boss.pursuitRate())-(p.slow>0?65:0))*dt,0,CONFIG.maxGap);
++        k.gap=clamp(k.gap+((this.combat.wipe>0?36:this.boss.pursuitRate())-(p.slow>0?65:0))*dt,0,Math.max(CONFIG.maxGap,k.gap));
+@@ -1580 +1586 @@ class RunnerGame {
+-      k.x=p.x-k.gap;
++      k.x=p.x-k.gap;if(freezeStep>0){k.x=previousChaserX+(k.x-previousChaserX)*Math.max(0,1-freezeStep/dt);k.gap=p.x-k.x;}
+@@ -1584 +1590,2 @@ class RunnerGame {
+-      if(k.y<4)k.phase+=Math.abs(k.x-previousChaserX)/(300*.73/4);
++      if(freezeStep>0)k.y=frozenY;
++      if(k.y<4&&!freezeStep)k.phase+=Math.abs(k.x-previousChaserX)/(300*.73/4);
+@@ -1598 +1605 @@ class RunnerGame {
+-      k.x=p.x-k.gap;
++      k.x=p.x-k.gap;if(freezeStep>0){k.x=previousChaserX+(k.x-previousChaserX)*Math.max(0,1-freezeStep/dt);k.gap=p.x-k.x;}
+@@ -1848,2 +1855,2 @@ class GameRenderer {
+-    const moving=game.state==='playing'&&(isChaser?game.grace===0||game.input.running:game.input.running&&!p.blocked);
+-    const cycle=entity.phase*(isChaser?.73:.8);const frame=!isChaser&&p.jumps?1:moving?Math.floor(cycle)%4:1;
++    const moving=game.state==='playing'&&!(isChaser&&game.power.freezeRemaining>0)&&(isChaser?game.grace===0||game.input.running:game.input.running&&!p.blocked);
++    const cycle=entity.phase*(isChaser?.73:.8);const frame=isChaser&&game.power.freezeRemaining>0?game.power.freezeFrame:!isChaser&&p.jumps?1:moving?Math.floor(cycle)%4:1;
+@@ -2223,0 +2231,51 @@ GameRenderer.prototype.heroEffects=function(g,behind){oldHeroEffects.call(this,g
++const DROP2_ART={"carry_paisley": "kozin-online/drop2/carry_paisley.webp", "tzippy_tech": "kozin-online/drop2/tzippy_tech.webp", "moreno": "kozin-online/drop2/moreno.webp", "michael": "kozin-online/drop2/michael.webp", "eyal": "kozin-online/drop2/eyal.webp", "yona_dogs": "kozin-online/drop2/yona_dogs.webp", "hashi": "kozin-online/drop2/hashi.webp", "carry_fahima": "kozin-online/drop2/carry_fahima.webp", "carry_tech": "kozin-online/drop2/carry_tech.webp", "tzippy_fahima": "kozin-online/drop2/tzippy_fahima.webp", "tzippy": "kozin-online/drop2/tzippy.webp", "yona_paisley": "kozin-online/drop2/yona_paisley.webp", "carry_dogs": "kozin-online/drop2/carry_dogs.webp", "luzo": "kozin-online/drop2/luzo.webp", "yona": "kozin-online/drop2/yona.webp", "michael_fahima": "kozin-online/drop2/michael_fahima.webp", "icons": "kozin-online/drop2/icons.webp", "yishai": "kozin-online/drop2/yishai.webp", "michael_tech": "kozin-online/drop2/michael_tech.webp"};
++const drop2={
++ async load(){
++  const load=url=>new Promise((yes,no)=>{const im=new Image();im.onload=()=>yes(im);im.onerror=no;im.src=url;});
++  this.carryFrames={};await Promise.all(['tech','fahima','dogs','paisley'].map(async outfit=>{const atlas=await load(DROP2_ART['carry_'+outfit]);this.carryFrames[outfit]=[];for(let n=0;n<12;n++){const c=document.createElement('canvas');c.width=448;c.height=384;c.getContext('2d').drawImage(atlas,n%4*448,Math.floor(n/4)*384,448,384,0,0,448,384);this.carryFrames[outfit].push(c);}}));
++  const icons=await load(DROP2_ART.icons);
++  for(let n=0;n<4;n++){const c=document.createElement('canvas');c.width=512;c.height=512;c.getContext('2d').drawImage(icons,n%2*512,Math.floor(n/2)*512,512,512,0,0,512,512);const icon=wardrobe.trim(c);wardrobe.icons[9+n]=icon;wardrobe.urls[9+n]=icon.toDataURL();}
++  await Promise.all(['tzippy','michael'].flatMap(id=>['tech','fahima'].map(async outfit=>{const atlas=await load(DROP2_ART[id+'_'+outfit]);wardrobe.costumes[id]??={};const frames=[];for(let n=0;n<12;n++){const c=document.createElement('canvas');c.width=448;c.height=384;c.getContext('2d').drawImage(atlas,n%4*448,Math.floor(n/4)*384,448,384,0,0,448,384);frames.push(c);}wardrobe.costumes[id][outfit]=frames;})));
++  await Promise.all(Object.keys(HEROES).map(async id=>{const atlas=await load(DROP2_ART[id]);wardrobe.costumes[id]??={};for(const [j,outfit]of ['dogs','paisley'].entries()){const frames=[];for(let n=0;n<12;n++){const c=document.createElement('canvas');c.width=448;c.height=384;c.getContext('2d').drawImage(atlas,n%4*448,(j*3+Math.floor(n/4))*384,448,384,0,0,448,384);frames.push(c);}wardrobe.costumes[id][outfit]=frames;}}));
++  this.ready=true;
++ },
++ fringes(source,pose,id){
++  this.cache??=new WeakMap();let slots=this.cache.get(source);if(!slots){slots=new Map();this.cache.set(source,slots);}const key=id+':'+pose;if(slots.has(key))return slots.get(key);
++  const c=document.createElement('canvas');c.width=source.width;c.height=source.height;const x=c.getContext('2d');x.drawImage(source,0,0);
++  const d=x.getImageData(0,0,c.width,c.height).data;let l=c.width,r=0,t=c.height,b=0;for(let y=0;y<c.height;y++)for(let xx=0;xx<c.width;xx++)if(d[(y*c.width+xx)*4+3]>160){l=Math.min(l,xx);r=Math.max(r,xx);t=Math.min(t,y);b=Math.max(b,y);}
++  const h=b-t,idle=pose===8,yy=t+h*(idle?.48:pose===11?.49:.51);let a=c.width,z=0;
++  for(let y=Math.floor(yy-3);y<yy+4;y++)for(let xx=l;xx<=r;xx++)if(d[(y*c.width+xx)*4+3]>160){a=Math.min(a,xx);z=Math.max(z,xx);}
++  if(a>z){a=l+(r-l)*.3;z=l+(r-l)*.65;}
++  const span=Math.min(z-a,h*.30),center=(a+z)/2;
++  for(const side of [-1,1]){const ax=center+side*span*.45,ay=yy-2,len=h*.20,sway=idle?side*3:Math.sin(pose*1.2+side)*h*.045-h*.025;
++   x.lineCap='round';for(let strand=0;strand<5;strand++){const offset=(strand-2)*1.5;x.strokeStyle=strand===2?'#2174b6':'#f3ead6';x.lineWidth=strand===2?1.8:1.2;x.beginPath();x.moveTo(ax+offset*.3,ay);x.bezierCurveTo(ax+offset,ay+len*.35,ax+sway+offset,ay+len*.65,ax+sway+offset*1.5,ay+len);x.stroke();}
++   for(let knot=0;knot<4;knot++){x.strokeStyle=knot%2?'#287bbd':'#fff8e9';x.lineWidth=2;x.beginPath();x.moveTo(ax-2+sway*knot*.06,ay+4+knot*4);x.lineTo(ax+2+sway*knot*.06,ay+4+knot*4);x.stroke();}
++  }
++  slots.set(key,c);return c;
++ }
++};
++const dropFrame=wardrobe.getFrame.bind(wardrobe);
++wardrobe.getFrame=function(id,index,gear=this.equipped){const f=dropFrame(id,index,gear);if(gear.fringe==='tekhelet'&&f.img)f.img=drop2.fringes(f.img,index,id);return f;};
++const freezeActivate=HeroPower.prototype.activate;
++HeroPower.prototype.activate=function(g){const result=freezeActivate.call(this,g);if(result&&['michael','moreno'].includes(g.wallet.selected)){this.slowRemaining=0;this.shock=0;this.freezeRemaining=1;this.freezeAge=0;this.freezeFrame=Math.floor(g.chaser.phase*.73)%4;g.burst(g.chaser.x,g.chaser.y+90,'#a8efff',22);}return result;};
++const freezeUpdate=HeroPower.prototype.update;
++HeroPower.prototype.update=function(g,dt){freezeUpdate.call(this,g,dt);if(this.freezeRemaining>0){this.freezeAge+=Math.min(dt,this.freezeRemaining);this.freezeRemaining=Math.max(0,this.freezeRemaining-dt);if(this.freezeRemaining<1e-8)this.freezeRemaining=0;if(!this.freezeRemaining)g.burst(g.chaser.x,g.chaser.y+95,'#b8eeff',25);}};
++const freezeRender=GameRenderer.prototype.character;
++GameRenderer.prototype.character=function(g,isChaser){freezeRender.call(this,g,isChaser);if(!isChaser||!(g.power.freezeRemaining>0))return;const c=this.ctx,x=g.chaser.x-this.camera,y=this.ground-g.chaser.y,t=g.power.freezeAge,alpha=Math.min(1,t/.12,g.power.freezeRemaining/.12);c.save();c.globalAlpha=alpha;c.strokeStyle='#c3f5ff';c.lineWidth=2.2;const gradient=c.createLinearGradient(x-55,y-200,x+60,y);gradient.addColorStop(0,'#a6eaff55');gradient.addColorStop(.5,'#49b5e21c');gradient.addColorStop(1,'#9ce8ff66');c.fillStyle=gradient;c.beginPath();c.moveTo(x-55,y-174);c.lineTo(x-38,y-201);c.lineTo(x+40,y-198);c.lineTo(x+64,y-170);c.lineTo(x+63,y-4);c.lineTo(x-55,y);c.closePath();c.fill();c.stroke();for(let n=0;n<7;n++){const sx=x-44+(n*29)%95,sy=y-25-(n*37)%155;const r=3+Math.sin(t*9+n)*1.5;c.beginPath();c.moveTo(sx-r,sy);c.lineTo(sx+r,sy);c.moveTo(sx,sy-r);c.lineTo(sx,sy+r);c.stroke();}c.restore();};
++
++const carryWithClothes=expansion.drawCarry;
++expansion.drawCarry=function(renderer,g,x,y,height){const current=this.frames.carry,chosen=drop2.carryFrames[wardrobe.equipped.outfit];if(chosen)this.frames.carry=chosen;carryWithClothes.call(this,renderer,g,x,y,height);this.frames.carry=current;};
++const typingWithClothes=expansion.drawTyping;
++expansion.drawTyping=function(renderer,g,x,y,height,moving){
++ if(!wardrobe.equipped.outfit)return typingWithClothes.call(this,renderer,g,x,y,height,moving);
++ const c=renderer.ctx,frame=wardrobe.getFrame('michael',8).img;
++ this.draw(c,frame,x,y,height);
++ const k=height/300,bx=x+height*.03,by=y-height*.49,w=height*.36,h=height*.065;
++ c.save();c.lineCap='round';c.lineJoin='round';
++ const sleeve=wardrobe.equipped.outfit==='tech'?'#a9aeb1':wardrobe.equipped.outfit==='paisley'?'#c2a394':'#202226';
++ for(const side of [-1,1]){c.strokeStyle='#191d21';c.lineWidth=17*k;c.beginPath();c.moveTo(x+side*24*k,y-height*.69);c.lineTo(x+side*30*k,y-height*.53);c.lineTo(bx+w*(side<0?.22:.75),by-5*k);c.stroke();c.strokeStyle=sleeve;c.lineWidth=13*k;c.stroke();}
++ c.translate(bx,by);c.rotate(-.04);c.fillStyle='#111e2a';c.strokeStyle='#8ab4d4';c.lineWidth=1.3;c.fillRect(0,0,w,h);c.strokeRect(0,0,w,h);
++ for(let row=0;row<3;row++)for(let col=0;col<10;col++){c.fillStyle=(col+row)%4===Math.floor(g.power.elapsed*8)%4?'#8ddaff':'#b6b8bc';c.fillRect(3+col*(w-6)/10,2+row*(h-4)/3,Math.max(1,w/13),Math.max(1,h/5));}
++ for(const side of [0,1]){c.fillStyle='#dca17a';c.beginPath();c.ellipse(w*(side?.75:.22),2+Math.sin(g.power.elapsed*24+side*2)*2,8*k,4*k,0,0,Math.PI*2);c.fill();}c.restore();
++};
++
+@@ -2366 +2424 @@ function showShopSelection(){
+-    <div class="kozin-shop-intro">תשעה פריטים מקוריים. מודדים, בוחרים ולובשים גם במרדף.</div>
++    <div class="kozin-shop-intro">13 פריטים מקוריים. מודדים, בוחרים ולובשים גם במרדף.</div>
+@@ -2382,3 +2440,3 @@ function showBrandStore(key,selection){
+- <div class="wardrobe-layout"><aside class="fitting-room"><div class="fitting-top"><span>חדר מדידה</span><select id="fittingHero" aria-label="דמות למדידה">${Object.entries(HEROES).map(([id,h])=>`<option value="${id}" ${id===game.wallet.selected?'selected':''}>${h.name}</option>`).join('')}</select></div><canvas id="fittingCanvas" width="560" height="560" aria-label="תצוגת הדמות עם הפריט"></canvas><div class="fitting-actions">${[['idle','עמידה'],['run','ריצה'],['jump','קפיצה'],['punch','אגרוף'],['kick','בעיטה']].map(([id,label])=>`<button data-pose="${id}" class="${id==='idle'?'active':''}">${label}</button>`).join('')}</div><div class="fitting-info"><h2>${item.name}</h2><p>${item.slot==='outfit'?(item.id==='tech'?'סט מלא: ג׳קט ומכנסיים ארוכים':'מעיל רוח שחור עם רוכסן וסמל שרוול'):item.slot==='feet'?'זוג נעליים שמחליף את הזוג הקודם':'כיפה שמתאימה לכל דמות'}</p><button id="buyGear" class="gear-purchase">${worn?'להסיר':owned?'ללבוש':`לקנות וללבוש · ${item.price} אוכל`}</button><span class="gear-save-note">${owned?'בארון שלך':'רכישה אחת לכל הדמויות'} · נשמר במכשיר</span></div></aside>
+- <main class="gear-grid">${items.map(g=>`<button class="gear-card ${g.id===item.id?'selected':''}" data-gear="${g.id}" aria-pressed="${g.id===item.id}"><span class="gear-type">${g.slot==='head'?'אביזר ראש':g.slot==='outfit'?'לבוש':'נעליים'}</span><span class="gear-state">${wardrobe.equipped[g.slot]===g.id?'לובש עכשיו':wardrobe.owned.has(g.id)?'בארון שלך':''}</span><div class="gear-art"><img src="${wardrobe.urls[g.tile]||''}" alt="${g.name}" draggable="false"></div><strong>${g.name}</strong><span class="gear-price">${wardrobe.owned.has(g.id)?'למדידה':g.price+' אוכל'}</span></button>`).join('')}</main></div>
+- <div class="wardrobe-equipped">${['head','outfit','feet'].map(slot=>{const g=GEAR.find(g=>g.id===wardrobe.equipped[slot]);return `<button data-clear-slot="${slot}" ${g?'':'disabled'}>${slot==='head'?'ראש':slot==='outfit'?'לבוש':'נעליים'}: ${g?g.name+' ×':'ברירת מחדל'}</button>`}).join('')}</div></div>`,'storeBackToShops',showShopSelection);
++ <div class="wardrobe-layout"><aside class="fitting-room"><div class="fitting-top"><span>חדר מדידה</span><select id="fittingHero" aria-label="דמות למדידה">${Object.entries(HEROES).map(([id,h])=>`<option value="${id}" ${id===game.wallet.selected?'selected':''}>${h.name}</option>`).join('')}</select></div><canvas id="fittingCanvas" width="560" height="560" aria-label="תצוגת הדמות עם הפריט"></canvas><div class="fitting-actions">${[['idle','עמידה'],['run','ריצה'],['jump','קפיצה'],['punch','אגרוף'],['kick','בעיטה']].map(([id,label])=>`<button data-pose="${id}" class="${id==='idle'?'active':''}">${label}</button>`).join('')}</div><div class="fitting-info"><h2>${item.name}</h2><p>${item.slot==='outfit'?(item.id==='dogs'?'פוטר שחור עם הדפס דוברמנים':item.id==='paisley'?'מעיל פוך עם דוגמת פייזלי בגווני חום וקרם':item.id==='tech'?'סט מלא: ג׳קט ומכנסיים ארוכים':'מעיל רוח שחור עם רוכסן וסמל שרוול'):item.slot==='fringe'?'פתילים לבנים ותכלת מתחת לכל בגד, בלי חולצה לבנה גלויה':item.slot==='feet'?'זוג נעליים שמחליף את הזוג הקודם':'כיפה שמתאימה לכל דמות'}</p><button id="buyGear" class="gear-purchase">${worn?'להסיר':owned?'ללבוש':`לקנות וללבוש · ${item.price} אוכל`}</button><span class="gear-save-note">${owned?'בארון שלך':'רכישה אחת לכל הדמויות'} · נשמר במכשיר</span></div></aside>
++ <main class="gear-grid">${items.map(g=>`<button class="gear-card ${g.id===item.id?'selected':''}" data-gear="${g.id}" aria-pressed="${g.id===item.id}"><span class="gear-type">${g.slot==='head'?'אביזר ראש':g.slot==='outfit'?'לבוש':slot==='fringe'?'ציצית':'נעליים'}</span><span class="gear-state">${wardrobe.equipped[g.slot]===g.id?'לובש עכשיו':wardrobe.owned.has(g.id)?'בארון שלך':''}</span><div class="gear-art"><img src="${wardrobe.urls[g.tile]||''}" alt="${g.name}" draggable="false"></div><strong>${g.name}</strong><span class="gear-price">${wardrobe.owned.has(g.id)?'למדידה':g.price+' אוכל'}</span></button>`).join('')}</main></div>
++ <div class="wardrobe-equipped">${['head','outfit','feet','fringe'].map(slot=>{const g=GEAR.find(g=>g.id===wardrobe.equipped[slot]);return `<button data-clear-slot="${slot}" ${g?'':'disabled'}>${slot==='head'?'ראש':slot==='outfit'?'לבוש':slot==='fringe'?'ציצית':'נעליים'}: ${g?g.name+' ×':'ברירת מחדל'}</button>`}).join('')}</div></div>`,'storeBackToShops',showShopSelection);
+@@ -2532 +2590 @@ updateSoundButton();renderer.reset(game);showMenu();refreshHud();requestAnimatio
+-Promise.all([assets.load(),wardrobe.loadAll()]).then(()=>expansion.load()).then(()=>{
++Promise.all([assets.load(),wardrobe.loadAll()]).then(()=>expansion.load()).then(()=>drop2.load()).then(()=>{

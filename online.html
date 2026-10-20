@@ -359,6 +359,54 @@ function scheduleWarmup(){
   requestIdleCallback(pump,{timeout:800});
  else setTimeout(pump,16);
 }
+// Credit only authoritative cumulative rewards. Rendering cannot save a round.
+let rewardWallet=null;
+function installRewardWallet(wallet,storage){
+ const save=wallet.save.bind(wallet);
+ const owner={key:wallet.key,user:wallet.user,selected:wallet.selected};
+ // Cloud sync crosses await boundaries; pin only the persisted selection there.
+ const persistenceWallet=new Proxy(wallet,{get(target,key,receiver){return key==='selected'?owner.selected:Reflect.get(target,key,receiver)}});
+ const flush=wallet.flush.bind(persistenceWallet);
+ wallet.save=()=>{};wallet.flush=async()=>{};wallet.record=()=>{};
+ let lastFlush=0;
+ return function credit(round,id,reward,finished=false){
+  if(!/^[a-f0-9]{24}$/.test(round||'')||!id||!reward||wallet.key!==owner.key||wallet.user!==owner.user||owner.key==='kuzin-lab-v2')return false;
+  const receiptKey=round+':'+id;
+  const receipts=wallet.onlineReceipts||{};
+  const before=receipts[receiptKey]||{food:0,xp:0,best:0};
+  const number=(v,max)=>Number.isFinite(v)&&v>=0&&v<=max?v:0;
+  const target={food:Math.max(before.food,Math.floor(number(reward.food,1000000))),xp:Math.max(before.xp,Math.floor(number(reward.xp,10000000))),best:Math.max(before.best||0,number(reward.best,100))};
+  const food=target.food-before.food,xp=target.xp-before.xp;
+  if(!food&&!xp&&target.best<=(before.best||0))return true;
+  const previous={};for(const k of ['balance','earned','xp','level','best','pending','lastLevelReward','onlineReceipts'])previous[k]=wallet[k];
+  const selected=wallet.selected;
+  try{
+   wallet.onlineReceipts={...receipts,[receiptKey]:target};
+   const keys=Object.keys(wallet.onlineReceipts);while(keys.length>200)delete wallet.onlineReceipts[keys.shift()];
+   wallet.balance+=food;wallet.earned+=food;if(wallet.user)wallet.pending+=food;
+   if(xp)wallet.gainXP(xp);
+   wallet.best=Math.max(wallet.best,Math.floor(target.best*10)/10);
+   // The online renderer selects a sprite on this wallet. Preserve the actual
+   // lobby selection, purchases and account name when writing progress.
+   wallet.selected=owner.selected;save();
+   const saved=JSON.parse(storage.getItem(owner.key)||'null');
+   if(JSON.stringify(saved?.onlineReceipts?.[receiptKey])!==JSON.stringify(target))throw Error('save failed');
+  }catch{
+   Object.assign(wallet,previous);wallet.selected=selected;
+   announce('לא הצלחנו לשמור את התגמול במכשיר. ננסה שוב בעדכון הבא.');return false;
+  }
+  wallet.selected=selected;
+  if(finished||Date.now()-lastFlush>5000){
+   lastFlush=Date.now();wallet.selected=owner.selected;
+   try{Promise.resolve(flush()).catch(()=>{});}finally{wallet.selected=selected;}
+  }
+  return true;
+ };
+}
+function creditSnapshot(m){
+ const me=m?.players?.find(p=>p.id===session?.id);
+ if(me&&rewardWallet)rewardWallet(m.round,me.id,me.reward,!!m.outcome);
+}
 function onMessage(m){
  if(m.type==='pong'&&Number.isFinite(m.at)){pingMs=Math.max(0,performance.now()-m.at);return;}
  if(m.type==='hello'){if(m.protocol!==PROTOCOL){announce('גרסת שרת לא תואמת');return}}
@@ -394,7 +442,7 @@ function onMessage(m){
   if(!frame?.game||!appReady)return;
   if(m.outcome){running=false;held=false;if(!wasFinished)showResult(m.outcome);}
   else{running=true;if($('veil').classList.contains('hidden')===false||$('touchControls').style.display!=='block'||!document.body.classList.contains('online-controls-visible'))playView();}
-  updateGame(latest);updateHud();
+  creditSnapshot(latest);updateGame(latest);updateHud();
   if(m.outcome)showResult(m.outcome);
   updateIntro();
  }
@@ -608,6 +656,7 @@ function updateGame(m){const me=m.players.find(p=>p.id===session?.id),other=m.pl
  renderedSelf=null;renderedFriend=null;frame.renderer.reset(g);
 }
  revealGameCanvas();g.state='playing';g.wallet.selected=me.hero;Object.assign(g.player,me.player);g.power=Object.assign(g.power,me.power||{});
+ const freezeSource=(m.players||[]).reduce((best,p)=>(p.power?.freezeRemaining||0)>(best?.freezeRemaining||0)?p.power:best,me.power);g.power.freezeRemaining=freezeSource?.freezeRemaining||0;g.power.freezeAge=freezeSource?.freezeAge||0;g.power.freezeFrame=freezeSource?.freezeFrame||0;
  g.combat=Object.assign(g.combat,me.combat||{});g.combat.enemies=m.enemies||[];Object.assign(g.chaser,m.chaser);g.boss=Object.assign(g.boss,m.boss||{});
  g.obstacles=m.obstacles||[];g.foods=m.foods||[];g.mapIndex=m.mapIndex||0;g.distance=me.distance||0;g.time=m.time||0;
  for(const k of ['score','count','combo','maxCombo','hits','missed','cleared','shield','grace','celebration','particles','popups','bubbles'])if(k in me)g[k]=me[k];
@@ -675,7 +724,7 @@ const act=t=>{if(!running||inCountdown())return;if(t==='jump'&&frame?.game){
 });
 addEventListener('keydown',e=>{if(/INPUT|SELECT|TEXTAREA/.test(document.activeElement?.tagName||''))return;if(['ArrowRight','KeyD'].includes(e.code)){e.preventDefault();hold(true)}if(!e.repeat&&['Space','ArrowUp','KeyW'].includes(e.code)){e.preventDefault();act('jump')}if(!e.repeat&&e.code==='KeyS')act('power');if(!e.repeat&&e.code==='KeyK')act('kick');if(!e.repeat&&e.code==='KeyJ')act('punch')});addEventListener('keyup',e=>{if(['ArrowRight','KeyD'].includes(e.code))hold(false)});
 function hidden(v){if(running||room?.status==='running'){hold(false);send({type:'away',away:v});$('pauseChip').style.display=v?'block':'none';}}
-document.addEventListener('visibilitychange',()=>hidden(document.hidden));addEventListener('pagehide',()=>hidden(true));addEventListener('blur',()=>hold(false));
+document.addEventListener('visibilitychange',()=>hidden(document.hidden));addEventListener('pagehide',()=>hidden(true));addEventListener('pageshow',()=>{if(!document.hidden)hidden(false)});addEventListener('blur',()=>hold(false));
 $('cancelConnectBtn').onclick=()=>{
  if(!connectPending)return;
  clearTimeout(reconnectTimer);manualLeave=true;closeSocket();
@@ -690,14 +739,21 @@ $('shareBtn').onclick=async()=>{const l=new URL(location.href);l.searchParams.se
 $('resultAgain').onclick=()=>{$('againBtn').click();hideResult();roomView();announce('ממתינים למשחק חוזר…');};
 $('resultLeave').onclick=()=>$('leaveBtn').click();
 $('leaveBtn').onclick=()=>{autoReadyWhenLoaded=false;manualLeave=true;send({type:'leave'});closeSocket();clearSession();menuView();announce('יצאת מהחדר')};
-async function setupFrame(){let attempt=0;while(attempt++<110){try{const f=$('original').contentWindow;const bridge=f.eval('({game,renderer,assets,wardrobe,controls})');if(bridge?.game&&bridge?.renderer&&bridge.assets.loaded&&bridge.wardrobe){
+async function setupFrame(){let attempt=0;while(attempt++<110){try{const f=$('original').contentWindow;const bridge=f.eval('({game,renderer,assets,wardrobe,controls,contentReady:typeof drop2==='undefined'||drop2.ready===true})');if(bridge?.game&&bridge?.renderer&&bridge.assets.loaded&&bridge.wardrobe&&bridge.contentReady){
 await Promise.race([Promise.resolve(bridge.game.wallet.ready).catch(()=>{}),new Promise(resolve=>setTimeout(resolve,3500))]);
 // Do not refetch the cloud profile synchronously here: it can keep the entire
 // multiplayer UI waiting when auth or the remote save provider is slow.
 // wallet.ready already supplies the initial local/account state.
 // Wait for the real account and ownership to finish loading.
-// Read cosmetics from the original game, but never write an online round to its save.
-bridge.game.wallet.save=()=>{};bridge.game.wallet.flush=async()=>{};bridge.game.wallet.record=()=>{};
+// Disable standalone simulation writes now; crediting waits for account boot
+// even when loading the renderer has timed out of that wait.
+const wallet=bridge.game.wallet,originalSave=wallet.save.bind(wallet),originalFlush=wallet.flush.bind(wallet);
+wallet.save=()=>{};wallet.flush=async()=>{};wallet.record=()=>{};
+Promise.resolve(wallet.ready).then(()=>{
+ wallet.save=originalSave;wallet.flush=originalFlush;
+ rewardWallet=installRewardWallet(wallet,f.localStorage);
+ creditSnapshot(latest);
+}).catch(()=>announce('החשבון לא נטען. התגמולים ימתינו לחיבור מחדש.'));
 frame=bridge;appReady=true;
 // The regular game animates its lobby previews on every animation frame. They are
 // invisible in online mode and waste CPU/GPU time beside multiplayer drawing.

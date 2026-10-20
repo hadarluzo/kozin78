@@ -1,0 +1,28 @@
+import assert from 'node:assert/strict';
+import vm from 'node:vm';
+import {readFileSync} from 'node:fs';
+const index=readFileSync(new URL('../../index.html',import.meta.url),'utf8');
+const online=readFileSync(new URL('../../online.html',import.meta.url),'utf8');
+const walletCode=index.slice(index.indexOf('class SessionWallet {'),index.indexOf('// Cloud account integration.'));
+const creditCode=online.slice(online.indexOf('function installRewardWallet('),online.indexOf('\nfunction creditSnapshot('));
+const storage=new Map();let blocked=false;const notices=[];
+const localStorage={getItem:k=>storage.get(k)||null,setItem(k,v){if(blocked)throw Error('quota');storage.set(k,v)}};
+const ctx={localStorage,console,TEST_MODE:false,HEROES:{luzo:{},michael:{},tzippy:{}},announce:m=>notices.push(m),levelXPNeeded:l=>Math.floor(750+280*Math.pow(l,1.55)),levelFoodReward:l=>l<=3?50:100};
+vm.createContext(ctx);vm.runInContext(walletCode+'\n'+creditCode+'\nthis.Wallet=SessionWallet;this.install=installRewardWallet;',ctx);
+let w=new ctx.Wallet();await w.ready;w.balance=900;w.xp=1000;w.owned.add('michael');w.selected='michael';w.name='חשבון בדיקה';w.save();
+const round='a'.repeat(24),id='player-one';let credit=ctx.install(w,localStorage);
+w.selected='tzippy';assert(credit(round,id,{food:10,xp:40,best:25}));
+assert.equal(w.balance,960,'food plus one level bonus');assert.equal(w.level,2);assert.equal(w.xp,10);assert.equal(w.selected,'tzippy','render selection restored');
+let saved=JSON.parse(storage.get(w.key));assert.equal(saved.selected,'michael');assert.equal(saved.name,'חשבון בדיקה');assert.deepEqual(saved.owned,['luzo','michael']);
+credit(round,id,{food:10,xp:40,best:25});assert.equal(w.balance,960,'duplicate packet');
+w=new ctx.Wallet();await w.ready;credit=ctx.install(w,localStorage);credit(round,id,{food:10,xp:40,best:25});assert.equal(w.balance,960,'reload and resume dedupe');
+credit(round,id,{food:8,xp:20,best:15});assert.equal(w.balance,960,'old packet cannot remove credit');
+blocked=true;assert.equal(credit(round,id,{food:11,xp:47,best:26}),false);assert.equal(w.balance,960,'failed storage rolls back');blocked=false;
+assert(credit(round,id,{food:11,xp:47,best:26}));assert.equal(w.balance,961,'retry credits once');
+w.key='another-account';assert.equal(credit(round,id,{food:12,xp:54,best:27}),false,'account switch guarded');
+// Async cloud flush sees the lobby selection even after renderer changes it.
+w=new ctx.Wallet();await w.ready;w.user='account';w.selected='michael';let cloudSelected;
+w.flush=async function(){await Promise.resolve();cloudSelected=this.selected;return true};
+credit=ctx.install(w,localStorage);w.selected='tzippy';credit('b'.repeat(24),id,{food:1,xp:7,best:1},true);await new Promise(r=>setTimeout(r,0));assert.equal(cloudSelected,'michael');
+assert(online.includes("addEventListener('pageshow'"),'iOS history restore unpauses');
+console.log('PASS real wallet: cumulative rewards, level bonus, reconnect/reload dedupe, stale packets, save failure retry, account isolation and async selection preservation');
