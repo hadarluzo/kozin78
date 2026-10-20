@@ -365,9 +365,23 @@ function patchRenderer(){
   const ownGear=frame.wardrobe.equipped,other=remote;
   try{
    const displayOther=smoothRemote?{...other.player,x:smoothRemote.x,y:smoothRemote.y,phase:smoothRemote.phase}:other.player;
-   // Both players have independent cameras. Avoid expensive sprite drawing
-   // for a teammate who is entirely outside this player's visible scene.
-   if(!displayOther||displayOther.x<this.camera-120||displayOther.x>this.camera+this.width+120)return;
+   if(!displayOther)return;
+   // Server world coordinates are intentionally identical at the start.
+   // The old implementation painted transparent avatars on top of each other,
+   // making the teammate look invisible. Offset only the drawing while the
+   // players overlap; do NOT change their positions or shared physics.
+   const ownX=smoothSelf?.x??g.player.x,ownY=smoothSelf?.y??g.player.y;
+   const together=Math.abs(displayOther.x-ownX)<108&&Math.abs((displayOther.y||0)-(ownY||0))<100;
+   const toRight=(ownX-this.camera)<this.width-180;
+   const visualOffset=together?(toRight?108:-108):0;
+   const shownX=displayOther.x+visualOffset;
+   if(shownX<this.camera-100||shownX>this.camera+this.width+100){
+    const onRight=shownX>this.camera+this.width/2;
+    const tx=onRight?this.width-95:95;
+    const difference=Math.round(Math.abs(displayOther.x-ownX)/10);
+    this.text((onRight?'← ':'→ ')+(other.name||'חבר')+' '+difference+' מ׳',tx,Math.max(120,this.ground-245),15,'#8ef1ff',true);
+    return;
+   }
    if(remoteAvatarSource!==other){
     remoteAvatarSource=other;
     const otherHero=other.hero||roomRoster.get(other.id)?.hero||'luzo';
@@ -379,7 +393,8 @@ function patchRenderer(){
     };
    }
    frame.wardrobe.equipped=remoteAvatar.gear;
-   const proxy={...g,wallet:remoteAvatar.wallet,player:displayOther,
+   const shownPlayer=visualOffset?{...displayOther,x:shownX}:displayOther;
+   const proxy={...g,wallet:remoteAvatar.wallet,player:shownPlayer,
     power:Object.assign(remoteAvatar.power,g.power,other.power||{},{
      carrying:other.power?.type==='tzippy'&&(other.power?.remaining||0)>0,
      flying:!!other.power?.flying}),
@@ -389,9 +404,16 @@ function patchRenderer(){
    // Distinguish the teammate visually: never fade the local player's sprite.
    const ctx=this.ctx,oldAlpha=ctx.globalAlpha;
    ctx.save();
-   try{ctx.globalAlpha=oldAlpha*.56;this.character(proxy,false);}
-   finally{ctx.restore();}
-   this.text(remoteAvatar.label,displayOther.x-this.camera,this.ground-(displayOther.y||0)-199,16,'#8ef1ff',true);
+   try{
+    // Visual contrast keeps translucent teammates distinct on top of your hero.
+    ctx.globalAlpha=oldAlpha*.74;
+    this.character(proxy,false);
+    ctx.beginPath();
+    ctx.strokeStyle='#89f4ff';ctx.lineWidth=2.5;
+    ctx.ellipse(shownX-this.camera,this.ground-(shownPlayer.y||0)-101,43,96,0,0,Math.PI*2);
+    ctx.stroke();
+   }finally{ctx.restore();}
+   this.text(remoteAvatar.label,shownX-this.camera,this.ground-(shownPlayer.y||0)-210,16,'#8ef1ff',true);
   }catch(e){if(!this.remoteErrorLogged){console.warn('Kozin remote render error',e);this.remoteErrorLogged=true}}
   finally{frame.wardrobe.equipped=ownGear}
  };
