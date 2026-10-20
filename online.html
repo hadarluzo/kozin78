@@ -368,7 +368,9 @@ function onMessage(m){
   roomView();$('roomCode').textContent=m.code;
   announce(appReady?'מחובר לחדר! מחכה לחבר.':'החדר נוצר בהצלחה! טוען את המשחק כדי שתוכל להתחיל.');
   $('pauseChip').style.display='none';
-  ensureGameLoaded();
+  // Give the browser a paint opportunity to display the room code before
+  // navigation/decoding of the 16 MB original game begins on older iPhones.
+  setTimeout(ensureGameLoaded,220);
   // If the assets happened to finish while the socket was connecting,
   // publish the real account name, unlocked character and equipped outfit.
   if(appReady&&frame&&profile){
