@@ -289,6 +289,7 @@ function showResult(outcome){
 function patchRenderer(){
  if(renderInstalled||!frame)return;
  const r=frame.renderer,orig=r.draw,origCam=r.updateCamera;
+ let remoteAvatar=null,remoteAvatarKey='';
  renderInstalled=true;
  // Keep authoritative server snapshots separate from display-only interpolation.
  const interp=(last,target,k)=>{
@@ -309,12 +310,25 @@ function patchRenderer(){
   const ownGear=frame.wardrobe.equipped,other=remote;
   try{
    const otherHero=other.hero||roomRoster.get(other.id)?.hero||'luzo';
-   frame.wardrobe.equipped={...(roomRoster.get(other.id)?.gear||{}),...(other.gear||{})};
+   const cachedGear=roomRoster.get(other.id)?.gear||{};
+   const gear={...cachedGear,...(other.gear||{})};
+   const avatarKey=other.id+':'+otherHero+':'+JSON.stringify(gear);
+   if(avatarKey!==remoteAvatarKey){
+    remoteAvatarKey=avatarKey;
+    remoteAvatar={hero:otherHero,gear,wallet:{...g.wallet,selected:otherHero},input:{running:false},combat:{},power:{}};
+   }
    const displayOther=smoothRemote?{...other.player,x:smoothRemote.x,y:smoothRemote.y,phase:smoothRemote.phase}:other.player;
    // Both players have independent cameras. Avoid expensive sprite drawing
    // for a teammate who is entirely outside this player's visible scene.
    if(!displayOther||displayOther.x<this.camera-120||displayOther.x>this.camera+this.width+120)return;
-   const proxy={...g,wallet:{...g.wallet,selected:otherHero},player:displayOther,power:{...g.power,...other.power,carrying:other.power?.type==='tzippy'&&(other.power?.remaining||0)>0,flying:!!other.power?.flying},combat:{...g.combat,...other.combat},input:{running:other.run||false},grace:0};
+   frame.wardrobe.equipped=remoteAvatar.gear;
+   const proxy={...g,wallet:remoteAvatar.wallet,player:displayOther,
+    power:Object.assign(remoteAvatar.power,g.power,other.power||{},{
+     carrying:other.power?.type==='tzippy'&&(other.power?.remaining||0)>0,
+     flying:!!other.power?.flying}),
+    combat:Object.assign(remoteAvatar.combat,g.combat,other.combat||{}),
+    input:remoteAvatar.input,grace:0};
+   proxy.input.running=!!other.run;
    // Distinguish the teammate visually: never fade the local player's sprite.
    const ctx=this.ctx,oldAlpha=ctx.globalAlpha;
    ctx.save();
@@ -335,7 +349,8 @@ function patchRenderer(){
   lastPaintTime=now;
   // Predict a short local movement slice between 20Hz authoritative updates.
   // The actual world, collisions, scoring and progress remain server-controlled.
-  const age=Math.min(.14,Math.max(0,(now-lastSnapshotAt)/1000));
+  const snapshotAge=Math.max(0,(now-lastSnapshotAt)/1000);
+  const age=Math.min(.15,snapshotAge);
   const me=getOwn();
   const serverSpeed=Number(me?.currentSpeed)||0;
   const baseSpeed=Math.max(0,Number(g.profile?.speed)||425)*(1+(Number(g.profile?.growth)||0)*Math.min(1,(g.time||0)/120));
@@ -344,13 +359,13 @@ function patchRenderer(){
   const targetX=g.player.x+speed*age;
   const predY=((g.player.jumps||0)>0||g.player.y>0)?Math.max(0,g.player.y+(g.player.vy||0)*age-775*age*age):g.player.y;
   let predicted={...g.player,x:targetX,y:predY};
-  if(visualJump&&now-visualJump.at<320&&(me?.player?.jumps||0)<visualJump.predictedJumps){
+  if(visualJump&&now-visualJump.at<800&&(me?.player?.jumps||0)<visualJump.predictedJumps){
    const t=(now-visualJump.at)/1000;
    predicted.y=Math.max(predicted.y,visualJump.y+visualJump.vy*t-775*t*t);
    predicted.vy=visualJump.vy-1550*t;
    predicted.jumps=visualJump.predictedJumps;
   }
-  if(visualJump&&(now-visualJump.at>350||(me?.player?.jumps||0)>=visualJump.predictedJumps))visualJump=null;
+  if(visualJump&&(now-visualJump.at>800||(me?.player?.jumps||0)>=visualJump.predictedJumps))visualJump=null;
   // Keep the displayed player moving at frame rate, then reconcile gradually
   // to authoritative collision and physics snapshots; never mutate the server state.
   const k=1-Math.exp(-22*dt);
@@ -358,9 +373,13 @@ function patchRenderer(){
    smoothSelf={x:targetX,y:predicted.y,phase:predicted.phase||0,jumps:predicted.jumps||0,vy:predicted.vy||0};
   }else{
    const oldX=smoothSelf.x;
-   smoothSelf.x+=localSpeed*dt;
-   smoothSelf.x+=(targetX-smoothSelf.x)*(1-Math.exp(-12*dt));
-   smoothSelf.y+=(predicted.y-smoothSelf.y)*(1-Math.exp(-32*dt));
+   // Local movement runs every frame; server snapshots only correct drift.
+   smoothSelf.x+=snapshotAge<.25?Math.min(800,localSpeed)*dt:0;
+   const dx=targetX-smoothSelf.x;
+   if(Math.abs(dx)>115)smoothSelf.x+=Math.sign(dx)*Math.min(Math.abs(dx)-115,120*dt);
+   else smoothSelf.x+=dx*(1-Math.exp(-6*dt));
+   const jumpPending=visualJump&&visualJump.predictedJumps>(me?.player?.jumps||0);
+   smoothSelf.y+=(predicted.y-smoothSelf.y)*(1-Math.exp(-(jumpPending?54:25)*dt));
    smoothSelf.phase=(smoothSelf.phase||0)+Math.max(0,smoothSelf.x-oldX)/30;
    smoothSelf.jumps=predicted.jumps||0;
    smoothSelf.vy=predicted.vy||0;
@@ -423,7 +442,16 @@ setInterval(()=>sendInput(false),50);
 setInterval(()=>{if(ws?.readyState===WebSocket.OPEN)send({type:'ping',at:performance.now()})},5000);
 function hold(v){if(v&&inCountdown())return;if(held===v)return;held=v;sendInput(true)}
 const run=$('runBtn');run.addEventListener('pointerdown',e=>{e.preventDefault();run.setPointerCapture(e.pointerId);hold(true)});['pointerup','pointercancel','lostpointercapture'].forEach(t=>run.addEventListener(t,e=>{e.preventDefault();hold(false)}));
-const act=t=>{if(!running||inCountdown())return;if(t==='jump'&&frame?.game){const p=frame.game.player;const now=performance.now();const pending=visualJump&&now-visualJump.at<320?visualJump.predictedJumps:0;const jumps=Math.max(p.jumps||0,pending);if(jumps<2)visualJump={at:now,y:Math.max(p.y||0,smoothSelf?.y||0),vy:jumps?610:620,predictedJumps:jumps+1};}send({type:'action',action:t})};
+const act=t=>{if(!running||inCountdown())return;if(t==='jump'&&frame?.game){
+ const p=frame.game.player,now=performance.now();
+ const pending=visualJump&&now-visualJump.at<800?visualJump.predictedJumps:0;
+ const jumps=Math.max(p.jumps||0,pending);
+ if(jumps<2){
+  const y=Math.max(0,p.y||0,smoothSelf?.y||0);
+  visualJump={at:now,y,vy:jumps?610:620,predictedJumps:jumps+1};
+  if(smoothSelf){smoothSelf.y=y+2;smoothSelf.vy=visualJump.vy;smoothSelf.jumps=jumps+1}
+ }
+}send({type:'action',action:t})};
 [['jumpBtn','jump'],['punchBtn','punch'],['kickBtn','kick'],['powerBtn','power']].forEach(([id,a])=>$(id).addEventListener('pointerdown',e=>{e.preventDefault();act(a)}));
 addEventListener('keydown',e=>{if(/INPUT|SELECT|TEXTAREA/.test(document.activeElement?.tagName||''))return;if(['ArrowRight','KeyD'].includes(e.code)){e.preventDefault();hold(true)}if(!e.repeat&&['Space','ArrowUp','KeyW'].includes(e.code)){e.preventDefault();act('jump')}if(!e.repeat&&e.code==='KeyS')act('power');if(!e.repeat&&e.code==='KeyK')act('kick');if(!e.repeat&&e.code==='KeyJ')act('punch')});addEventListener('keyup',e=>{if(['ArrowRight','KeyD'].includes(e.code))hold(false)});
 function hidden(v){if(running||room?.status==='running'){hold(false);send({type:'away',away:v});$('pauseChip').style.display=v?'block':'none';}}
