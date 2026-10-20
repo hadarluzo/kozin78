@@ -192,10 +192,11 @@ const playView=()=>{
 };
 function syncControlState(){
  const controls=$('touchControls');
- const waiting=running&&inCountdown();
+ const waiting=(room?.status==='running'&&!running)||(running&&inCountdown());
  controls.classList.toggle('controls-waiting',waiting);
  const hint=$('controlHint');
  if(room?.paused){hint.textContent='מחכים לחיבור של החבר…';controls.classList.add('controls-waiting')}
+ else if(!running&&room?.status==='running'){hint.textContent='ממתינים לעדכון הראשון מהשרת…'}
  else if(waiting){hint.textContent='3 · 2 · 1 — עוד רגע רצים!'}
  else hint.textContent='';
 }
