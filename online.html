@@ -35,7 +35,7 @@
 /* Mirror the original game's controls: #run left, #jump right,
    and a 2-column fight cluster at the middle-right of the screen.
    Do not use the old bottom flex row: on iPhones it overcrowded all buttons. */
-#touchControls{position:absolute;inset:0;left:0;right:0;bottom:auto;z-index:15;display:none;pointer-events:none;direction:ltr;align-items:initial;justify-content:initial}
+#touchControls{position:absolute;inset:0;left:0;right:0;bottom:0;z-index:15;display:none;pointer-events:none;direction:ltr;align-items:initial;justify-content:initial}
 body.online-controls-visible #touchControls{display:block!important}
 #touchControls .arcade,#touchControls .fight{pointer-events:auto!important}
 #touchControls.controls-waiting button{filter:saturate(.72)}
