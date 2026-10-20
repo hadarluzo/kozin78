@@ -26,7 +26,7 @@
 .intro-overlay.go .intro-content{color:#fff3d3;text-shadow:0 0 26px #c12710,0 5px 30px #000}
 .intro-content{animation:kozin-intro-pop .38s ease-out both}
 @keyframes kozin-intro-pop{from{opacity:.1;transform:scale(.65)}to{opacity:1;transform:scale(1)}}
-#splash{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;z-index:3;color:#fce6c5;background:#0c1926;pointer-events:none}#startupChip{display:none;position:absolute;z-index:9;top:54px;left:50%;transform:translateX(-50%);padding:7px 14px;border-radius:12px;background:#0b2636e8;color:#ffe1a0;text-align:center;font-size:14px;font-weight:bold;pointer-events:none;white-space:nowrap}#pauseChip{display:none;position:absolute;z-index:9;top:51px;left:50%;transform:translateX(-50%);padding:10px 20px;border-radius:13px;background:#102435ec;color:#ffe09d;text-align:center;font-weight:bold;pointer-events:none}a{color:#ffe1a5}#options{display:none}#backLink{font-size:12px;display:inline-block;margin:12px}
+#splash{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;z-index:3;color:#fce6c5;background:#0c1926;pointer-events:none}#startupChip{display:none;position:absolute;z-index:9;top:54px;left:50%;transform:translateX(-50%);padding:7px 14px;border-radius:12px;background:#0b2636e8;color:#ffe1a0;text-align:center;font-size:14px;font-weight:bold;pointer-events:none;white-space:nowrap}#pauseChip{display:none;position:absolute;z-index:9;top:51px;left:50%;transform:translateX(-50%);padding:10px 20px;border-radius:13px;background:#102435ec;color:#ffe09d;text-align:center;font-weight:bold;pointer-events:none}a{color:#ffe1a5}#options{display:block}#backLink{font-size:12px;display:inline-block;margin:12px}
 @media(max-width:700px) and (orientation:portrait){#touchControls .run{height:82px}#attack button{min-height:60px;min-width:54px;font-size:13px;padding:5px}}
 </style>
 </head>
@@ -51,6 +51,12 @@
 (()=>{'use strict';
 const $=id=>document.getElementById(id), PROTOCOL='kozin-full-3', URL='wss://kozin-online-server.onrender.com/full-v3', KEY='kozin-multiplayer-v3-session';
 const q=new URLSearchParams(location.search);if(/^\d{6}$/.test(q.get('room')||''))$('joinCode').value=q.get('room');
+// The lobby is usable immediately even if the 16 MB original game is still loading.
+$('options').style.display='block';
+$('nickname').readOnly=false;$('nickname').removeAttribute('aria-readonly');
+$('nickname').placeholder='שם שחקן (אפשר להשאיר ריק)';
+$('accountNote').textContent='אפשר ליצור חדר מיד. הדמויות והבגדים מהחשבון ייטענו בנפרד.';
+const starter=document.createElement('option');starter.value='luzo';starter.textContent='הדר';$('hero').append(starter);$('hero').value='luzo';
 let frame=null,ws=null,profile=null,room=null,session=null,ready=false,running=false,seq=0,held=false,latest=null,remote=null,reconnectTimer=null,reconnectStart=0,stopped=false,manualLeave=false,appReady=false,renderInstalled=false,lastSent=0,activeRound=null,smoothSelf=null,smoothChaser=null,smoothRemote=null,lastPaintTime=0,lastSnapshotAt=0,visualJump=null,frameCount=0,frameSum=0,frameSampleAt=0;const roomRoster=new Map();const HERO_LABELS={luzo:'הדר',yishai:'ישי',eyal:'אייל',moreno:'מורנו',hashi:'האשי',yona:'יונה',tzippy:'סבתא',michael:'מיכאל'};const heroName=id=>HERO_LABELS[id]||id||'דמות לא ידועה';const rememberRoster=ps=>{for(const p of ps||[]){const old=roomRoster.get(p.id)||{};roomRoster.set(p.id,{...old,...p,gear:{...(old.gear||{}),...(p.gear||{})}})}};const enrichedPlayers=ps=>(ps||[]).map(p=>{const old=roomRoster.get(p.id)||{};return {...old,...p,hero:p.hero||old.hero||'luzo',gear:{...(old.gear||{}),...(p.gear||{})}}});
 
 function drawHeroPortrait(id,canvas){
@@ -74,8 +80,7 @@ function updateHeroPicker(){
  drawHeroPortrait(selected,$('chosenHeroPortrait'));
 }
 function showHeroPicker(){
- if(!frame)return;
- syncAccountProfile();
+ if(frame)syncAccountProfile();
  const grid=$('heroGrid');grid.replaceChildren();
  for(const option of $('hero').options){
    const hero=option.value;
@@ -129,11 +134,11 @@ const announce=s=>$('status').textContent=s;
 const send=m=>{if(ws?.readyState===WebSocket.OPEN)try{ws.send(JSON.stringify(m));return true}catch{}return false};
 const hideResult=()=>{$('resultView').style.display='none'};
 const roomView=()=>{hideResult();$('options').style.display='none';$('roomSection').style.display='block';$('veil').classList.remove('hidden');$('touchControls').style.display='none';$('hud').style.display='none';};
-const menuView=()=>{hideResult();$('options').style.display='block';$('roomSection').style.display='none';$('veil').classList.remove('hidden');$('touchControls').style.display='none';$('hud').style.display='none';room=null;running=false;ready=false;activeRound=null;roomRoster.clear();$('startupChip').style.display='none';};
+const menuView=()=>{autoReadyWhenLoaded=false;profile=null;gameCanvasRevealed=false;hideResult();$('options').style.display='block';$('roomSection').style.display='none';$('veil').classList.remove('hidden');$('touchControls').style.display='none';$('hud').style.display='none';room=null;running=false;ready=false;activeRound=null;roomRoster.clear();$('startupChip').style.display='none';};
 const inCountdown=()=>running&&(!latest||((latest.startDelay||0)>0&&(latest.time||0)<latest.startDelay));
 const playView=()=>{hideResult();$('veil').classList.add('hidden');$('touchControls').style.display=inCountdown()?'none':'flex';$('hud').style.display='flex';$('splash').style.display='none';};
 const INTRO_LINES=['קוזין מתחיל להיות רעב…','3','2','1','תברחו על נפשותיכם מהמפלצת!!'];
-let introStage=-1;
+let introStage=-1,autoReadyWhenLoaded=false,gameCanvasRevealed=false,consecutiveFastSamples=0,pingMs=null;
 function updateIntro(){
  const overlay=$('introOverlay');
  if(!running||latest?.outcome||!inCountdown()){overlay.style.display='none';introStage=-1;return}
@@ -152,34 +157,94 @@ function clearSession(){session=null;try{sessionStorage.removeItem(KEY)}catch{}}
 try{session=JSON.parse(sessionStorage.getItem(KEY)||'null')}catch{clearSession()}
 function closeSocket(){const old=ws;ws=null;if(old){old.onclose=null;old.onerror=null;try{old.close(1000)}catch{}}}
 function startSocket(onOpen){clearTimeout(reconnectTimer);closeSocket();manualLeave=false;announce('מתחבר לשרת…');try{ws=new WebSocket(URL)}catch(e){announce('כתובת שרת לא תקינה: '+e.message);return}const current=ws;
+ // A stalled WebSocket handshake can otherwise leave Create Room doing nothing.
+ const handshakeGuard=setTimeout(()=>{
+  if(ws===current&&!session&&!room&&current.readyState!==WebSocket.CLOSED){
+   announce('החיבור התעכב. מנסה שרת מחדש…');
+   try{current.close()}catch{}
+  }
+ },14000);
  ws.onopen=()=>{if(ws!==current)return;announce('מחובר לשרת');onOpen();};
- ws.onmessage=e=>{if(ws!==current)return;let m;try{m=JSON.parse(e.data)}catch{return}onMessage(m)};
+ ws.onmessage=e=>{if(ws!==current)return;let m;try{m=JSON.parse(e.data)}catch{return}if(m.type==='joined')clearTimeout(handshakeGuard);onMessage(m)};
  ws.onerror=()=>announce('השרת לא זמין כרגע. מנסה להתחבר…');
- ws.onclose=()=>{if(ws!==current||manualLeave)return;running=false;held=false;$('pauseChip').style.display='block';if(!reconnectStart)reconnectStart=Date.now();const elapsed=Date.now()-reconnectStart;if(session&&elapsed<59000){announce('מחדש חיבור…');reconnectTimer=setTimeout(()=>startSocket(()=>send({type:'resume',protocol:PROTOCOL,code:session.code,id:session.id,token:session.token})),Math.min(4500,800+Math.floor(elapsed/3000)*600));}else{clearSession();reconnectStart=0;$('pauseChip').style.display='none';announce('החיבור נותק. פתחו חדר חדש.');menuView();}};
+ ws.onclose=()=>{
+  clearTimeout(handshakeGuard);
+  if(ws!==current||manualLeave)return;
+  running=false;held=false;
+  if(!reconnectStart)reconnectStart=Date.now();
+  const elapsed=Date.now()-reconnectStart;
+  // Retry initial room creation too (Render may wake slowly); formerly only
+  // players with an existing session were reconnected.
+  if(session&&elapsed<59000){
+    $('pauseChip').style.display='block';announce('מחדש חיבור לחדר…');
+    reconnectTimer=setTimeout(()=>startSocket(()=>send({type:'resume',protocol:PROTOCOL,code:session.code,id:session.id,token:session.token})),Math.min(4500,800+Math.floor(elapsed/3000)*600));
+  }else if(!session&&profile&&!room&&elapsed<69000){
+    announce('השרת מתעורר. מנסה שוב ליצור את החדר…');
+    reconnectTimer=setTimeout(()=>startSocket(onOpen),Math.min(4500,1200+Math.floor(elapsed/4000)*650));
+  }else{
+    clearSession();reconnectStart=0;$('pauseChip').style.display='none';
+    announce('החיבור לשרת נכשל. אפשר לנסות שוב ליצור חדר.');menuView();
+  }
+ };
 }
-function beginRoom(kind){if(!appReady){announce('המנוע המקורי עוד נטען, נסה שוב בעוד רגע');return}syncAccountProfile();const code=$('joinCode').value.trim();if(kind==='join'&&!/^\d{6}$/.test(code)){announce('צריך להזין קוד חדר בן 6 ספרות');return}const wallet=frame.game.wallet;
- const chosenName=String($('nickname').value||'').trim();
+function beginRoom(kind){
+ // Room creation must never depend on downloading the heavy original game, its
+ // image atlas or slow cloud wallet. The server accepts a basic Luzon profile;
+ // ownership, account name and cosmetics are refreshed before players ready up.
+ if(appReady&&frame)syncAccountProfile();
+ const code=$('joinCode').value.trim();
+ if(kind==='join'&&!/^\d{6}$/.test(code)){announce('צריך להזין קוד חדר בן 6 ספרות');return}
+ const wallet=frame?.game?.wallet;
+ let chosenName=String($('nickname').value||'').trim();
  if(!chosenName||['שחקן חדש','שחקן','אורח'].includes(chosenName)){
-  announce('כתוב שם שחקן או התחבר לחשבון דרך הלובי כדי לטעון את שם המשתמש.');
-  $('nickname').focus();return;
+  let stored='';try{stored=sessionStorage.getItem('kozin-online-guest-name')||''}catch{}
+  chosenName=stored&& !['שחקן חדש','שחקן','אורח'].includes(stored)?stored:'שחקן '+String(Math.floor(Math.random()*9000)+1000);
+  $('nickname').value=chosenName;
  }
- if(!wallet.user){try{sessionStorage.setItem('kozin-online-guest-name',chosenName)}catch{}}
- if(!wallet.owned.has($('hero').value)){announce('הדמות הזו לא פתוחה בחשבון שלך');return}clearSession();reconnectStart=0;profile={name:chosenName.slice(0,24),hero:$('hero').value,gear:{...frame.wardrobe.equipped},difficulty:$('difficulty').value};$('createBtn').disabled=$('joinBtn').disabled=true;startSocket(()=>send({type:kind,protocol:PROTOCOL,...profile,...(kind==='join'?{code}:{})}));setTimeout(()=>{$('createBtn').disabled=$('joinBtn').disabled=false},2400);}
+ if(wallet&&!wallet.user){try{sessionStorage.setItem('kozin-online-guest-name',chosenName)}catch{}}
+ else if(!wallet){try{sessionStorage.setItem('kozin-online-guest-name',chosenName)}catch{}}
+ const owned=wallet?.owned;
+ const selected=$('hero').value||'luzo';
+ if(appReady&&owned?.has&&!owned.has(selected)){announce('הדמות הזו לא פתוחה בחשבון שלך');return}
+ const selectedHero=appReady?selected:'luzo';
+ clearSession();reconnectStart=0;
+ profile={name:chosenName.slice(0,24),hero:selectedHero,gear:appReady?{...frame.wardrobe.equipped}:{},difficulty:$('difficulty').value||'normal'};
+ $('createBtn').disabled=$('joinBtn').disabled=true;
+ const selectedButton=kind==='create'?$('createBtn'):$('joinBtn');
+ selectedButton.textContent=kind==='create'?'יוצר חדר…':'מתחבר לחדר…';
+ announce('יוצר חדר בשרת… אפשר להיכנס ללובי בזמן שהגרפיקה נטענת.');
+ startSocket(()=>send({type:kind,protocol:PROTOCOL,...profile,...(kind==='join'?{code}:{})}));
+ setTimeout(()=>{$('createBtn').disabled=$('joinBtn').disabled=false;selectedButton.textContent=kind==='create'?'צור חדר':'הצטרף לחדר'},3500);
+}
 function onMessage(m){
+ if(m.type==='pong'&&Number.isFinite(m.at)){pingMs=Math.max(0,performance.now()-m.at);return;}
  if(m.type==='hello'){if(m.protocol!==PROTOCOL){announce('גרסת שרת לא תואמת');return}}
- if(m.type==='joined'){session={code:m.code,id:m.id,token:m.token};saveSession();room={code:m.code};reconnectStart=0;ready=false;roomView();$('roomCode').textContent=m.code;announce('מחובר לחדר! מחכה לחבר.');$('pauseChip').style.display='none';}
+ if(m.type==='joined'){
+  session={code:m.code,id:m.id,token:m.token};saveSession();room={code:m.code};reconnectStart=0;ready=false;
+  roomView();$('roomCode').textContent=m.code;
+  announce(appReady?'מחובר לחדר! מחכה לחבר.':'החדר נוצר בהצלחה! טוען את המשחק כדי שתוכל להתחיל.');
+  $('pauseChip').style.display='none';
+  // If the assets happened to finish while the socket was connecting,
+  // publish the real account name, unlocked character and equipped outfit.
+  if(appReady&&frame&&profile){
+   syncAccountProfile();
+   profile={...profile,name:String($('nickname').value||profile.name).slice(0,24),
+    hero:$('hero').value||profile.hero,gear:{...frame.wardrobe.equipped}};
+   send({type:'profile',...profile});
+  }
+ }
  if(m.type==='room'){
   room=m;rememberRoster(m.players);activeRound=m.round||activeRound;$('roomCode').textContent=m.code;$('waitingPlayers').textContent=(m.players||[]).map(p=>`${p.name} (${heroName(p.hero)}) ${p.connected?'●':'◌'} ${p.ready?'✓ מוכן':'ממתין'}`).join('  |  ');ready=!!m.players?.find(p=>p.id===session?.id)?.ready;$('readyBtn').textContent=ready?'מוכן ✓':'אני מוכן';
-  if(m.status==='waiting'){running=false;latest=null;remote=null;smoothSelf=smoothChaser=smoothRemote=null;roomView();$('readyBtn').style.display='inline-flex';$('againBtn').style.display='none';announce('שני שחקנים צריכים ללחוץ ״אני מוכן״');}
+  if(m.status==='waiting'){running=false;latest=null;remote=null;smoothSelf=smoothChaser=smoothRemote=null;roomView();$('readyBtn').style.display='inline-flex';$('againBtn').style.display='none';if(autoReadyWhenLoaded&&!appReady)$('readyBtn').textContent='ממתין לטעינת המשחק…';announce(appReady?'שני שחקנים צריכים ללחוץ ״אני מוכן״':'החדר מחובר. טוען גרפיקה ודמויות לפני תחילת המרדף…');}
   if(m.status==='finished'){running=false;if(latest?.outcome)showResult(latest.outcome);else {roomView();$('readyBtn').style.display='none';$('againBtn').style.display='inline-flex';}}
   if(m.status==='running'){$('pauseChip').style.display=m.paused?'block':'none';if(!m.paused)playView();}
  }
- if(m.type==='started'){running=true;held=false;introStage=-1;seq=0;latest=null;remote=null;smoothSelf=smoothChaser=smoothRemote=null;visualJump=null;lastSnapshotAt=0;lastPaintTime=0;if(frame?.game){frame.game.__onlineStarted=false;}activeRound=m.round||activeRound;revealGameCanvas();playView();announce('המרדף התחיל!');sendInput(false);}
+ if(m.type==='started'){running=true;held=false;gameCanvasRevealed=false;introStage=-1;seq=0;latest=null;remote=null;smoothSelf=smoothChaser=smoothRemote=null;visualJump=null;lastSnapshotAt=0;lastPaintTime=0;if(frame?.game){frame.game.__onlineStarted=false;}activeRound=m.round||activeRound;revealGameCanvas();playView();announce('המרדף התחיל!');sendInput(false);}
  if(m.type==='snapshot'){
   if(!session||m.code!==session.code)return;if(activeRound&&m.round&&m.round!==activeRound)return;lastSnapshotAt=performance.now();const players=enrichedPlayers(m.players);rememberRoster(players);const wasFinished=latest?.outcome;latest={...m,players};
   if(!frame?.game||!appReady)return;
   if(m.outcome){running=false;held=false;if(!wasFinished)showResult(m.outcome);}
-  else{running=true;playView();}
+  else{running=true;if($('veil').classList.contains('hidden')===false||$('touchControls').style.display!==(inCountdown()?'none':'flex'))playView();}
   updateGame(latest);updateHud();
   if(m.outcome)showResult(m.outcome);
   updateIntro();
@@ -226,6 +291,9 @@ function patchRenderer(){
    const otherHero=other.hero||roomRoster.get(other.id)?.hero||'luzo';
    frame.wardrobe.equipped={...(roomRoster.get(other.id)?.gear||{}),...(other.gear||{})};
    const displayOther=smoothRemote?{...other.player,x:smoothRemote.x,y:smoothRemote.y,phase:smoothRemote.phase}:other.player;
+   // Both players have independent cameras. Avoid expensive sprite drawing
+   // for a teammate who is entirely outside this player's visible scene.
+   if(!displayOther||displayOther.x<this.camera-120||displayOther.x>this.camera+this.width+120)return;
    const proxy={...g,wallet:{...g.wallet,selected:otherHero},player:displayOther,power:{...g.power,...other.power,carrying:other.power?.type==='tzippy'&&(other.power?.remaining||0)>0,flying:!!other.power?.flying},combat:{...g.combat,...other.combat},input:{running:other.run||false},grace:0};
    // Distinguish the teammate visually: never fade the local player's sprite.
    const ctx=this.ctx,oldAlpha=ctx.globalAlpha;
@@ -284,8 +352,20 @@ function patchRenderer(){
   if(!frameSampleAt)frameSampleAt=now;
   if(now-frameSampleAt>2500){
    const fps=frameCount/Math.max(.01,(now-frameSampleAt)/1000);
-   if(q.get('debug')==='1'){$('perfTag').style.display='block';$('perfTag').textContent='FPS '+Math.round(fps)+' · NET '+Math.round(Math.max(0,now-lastSnapshotAt))+'ms';}
-   if(fps<45&&frame.renderer.maxPixelBudget>480000){frame.renderer.maxPixelBudget=Math.max(480000,Math.round(frame.renderer.maxPixelBudget*.8));frame.renderer.resize();}
+   if(q.get('debug')==='1'){$('perfTag').style.display='block';$('perfTag').textContent='FPS '+Math.round(fps)+' · PING '+(pingMs==null?'--':Math.round(pingMs))+'ms · SNAP '+Math.round(Math.max(0,now-lastSnapshotAt))+'ms';}
+   // Lower resolution only after a sustained real frame-rate drop, not a single
+   // expensive frame. Re-evaluate slowly to avoid resize/quality oscillation.
+   if(fps<47&&frame.renderer.maxPixelBudget>450000){
+    consecutiveFastSamples=0;
+    frame.renderer.maxPixelBudget=Math.max(450000,Math.round(frame.renderer.maxPixelBudget*.82));
+    frame.renderer.resize();
+   }else if(fps>58){
+    consecutiveFastSamples++;
+    if(consecutiveFastSamples>=5&&frame.renderer.maxPixelBudget<950000){
+     frame.renderer.maxPixelBudget=Math.min(950000,Math.round(frame.renderer.maxPixelBudget*1.12));
+     frame.renderer.resize();consecutiveFastSamples=0;
+    }
+   }else consecutiveFastSamples=0;
    frameCount=0;frameSum=0;frameSampleAt=now;
   }
   const priorPlayer=g.player,priorChaser=g.chaser;
@@ -296,7 +376,7 @@ function patchRenderer(){
   }finally{g.player=priorPlayer;g.chaser=priorChaser}
  };
 }
-function revealGameCanvas(){const doc=$('original').contentDocument;if(!doc?.body)return;
+function revealGameCanvas(){if(gameCanvasRevealed)return;const doc=$('original').contentDocument;if(!doc?.body)return;gameCanvasRevealed=true;
  // The original lobby leaves body.home active even after the multiplayer engine starts.
  // That class applies blur(13px) and brightness(.2) to the entire game canvas.
  doc.body.classList.remove('home');doc.getElementById('overlay')?.classList.add('hidden');
@@ -314,6 +394,8 @@ function updateGame(m){const me=m.players.find(p=>p.id===session?.id),other=m.pl
 function updateHud(){const me=getOwn();if(!me||!latest)return;$('hudName').textContent=(me.name||'שחקן')+' · '+heroName(me.hero);$('hudDistance').textContent=' · '+Math.round(Math.max(0,(me.player?.x||320)-320)/10)+' מ׳';const friend=latest.players.find(p=>p.id!==session?.id);$('hudRoom').textContent='חדר '+session.code+(friend?' · חבר: '+heroName(friend.hero):'');const delay=Number(latest.startDelay)||0;const remain=Math.max(0,(delay?delay+1.5:6)-(latest.time||0));$('startupChip').textContent='יתרון פתיחה · '+Math.ceil(remain)+' שניות';$('startupChip').style.display=latest.outcome||!running||inCountdown()||remain<=0?'none':'block';$('hudEnergy').textContent='קוזין '+Math.max(0,Math.round(latest.chaser?.energy||0))+'%';$('hudFood').textContent=' · '+(me.count||0)+' מאכלים';const cooldown=Math.max(0,me.power?.cooldown||0);$('powerClock').textContent=cooldown?Math.ceil(cooldown)+' שנ׳':'מוכן';$('powerBtn').disabled=cooldown>0;}
 function sendInput(force){if(!running||!session||!frame)return;const now=Date.now();if(force!==true&&now-lastSent<65)return;lastSent=now;const width=frame.renderer?.width||1000;send({type:'input',seq:++seq,run:held,lift:false,width});}
 setInterval(()=>sendInput(false),50);
+// Measure actual socket latency separately from local rendering FPS.
+setInterval(()=>{if(ws?.readyState===WebSocket.OPEN)send({type:'ping',at:performance.now()})},5000);
 function hold(v){if(v&&inCountdown())return;if(held===v)return;held=v;sendInput(true)}
 const run=$('runBtn');run.addEventListener('pointerdown',e=>{e.preventDefault();run.setPointerCapture(e.pointerId);hold(true)});['pointerup','pointercancel','lostpointercapture'].forEach(t=>run.addEventListener(t,e=>{e.preventDefault();hold(false)}));
 const act=t=>{if(!running||inCountdown())return;if(t==='jump'&&frame?.game){const p=frame.game.player;const now=performance.now();const pending=visualJump&&now-visualJump.at<320?visualJump.predictedJumps:0;const jumps=Math.max(p.jumps||0,pending);if(jumps<2)visualJump={at:now,y:Math.max(p.y||0,smoothSelf?.y||0),vy:jumps?610:620,predictedJumps:jumps+1};}send({type:'action',action:t})};
@@ -321,16 +403,19 @@ const act=t=>{if(!running||inCountdown())return;if(t==='jump'&&frame?.game){cons
 addEventListener('keydown',e=>{if(/INPUT|SELECT|TEXTAREA/.test(document.activeElement?.tagName||''))return;if(['ArrowRight','KeyD'].includes(e.code)){e.preventDefault();hold(true)}if(!e.repeat&&['Space','ArrowUp','KeyW'].includes(e.code)){e.preventDefault();act('jump')}if(!e.repeat&&e.code==='KeyS')act('power');if(!e.repeat&&e.code==='KeyK')act('kick');if(!e.repeat&&e.code==='KeyJ')act('punch')});addEventListener('keyup',e=>{if(['ArrowRight','KeyD'].includes(e.code))hold(false)});
 function hidden(v){if(running||room?.status==='running'){hold(false);send({type:'away',away:v});$('pauseChip').style.display=v?'block':'none';}}
 document.addEventListener('visibilitychange',()=>hidden(document.hidden));addEventListener('pagehide',()=>hidden(true));addEventListener('blur',()=>hold(false));
-$('createBtn').onclick=()=>beginRoom('create');$('joinBtn').onclick=()=>beginRoom('join');$('readyBtn').onclick=()=>send({type:'ready',ready:!ready});$('againBtn').onclick=()=>{send({type:'rematch'});$('againBtn').disabled=true;setTimeout(()=>$('againBtn').disabled=false,1200)};
+$('createBtn').onclick=()=>beginRoom('create');$('joinBtn').onclick=()=>beginRoom('join');$('readyBtn').onclick=()=>{
+ if(!appReady){autoReadyWhenLoaded=!autoReadyWhenLoaded;announce(autoReadyWhenLoaded?'החדר נוצר! ממתין לטעינת הגרפיקה לפני תחילת המשחק.':'המתנה למוכנות בוטלה.');$('readyBtn').textContent=autoReadyWhenLoaded?'מכין את המשחק…':'אני מוכן';return}
+ autoReadyWhenLoaded=false;send({type:'ready',ready:!ready});
+};$('againBtn').onclick=()=>{send({type:'rematch'});$('againBtn').disabled=true;setTimeout(()=>$('againBtn').disabled=false,1200)};
 $('shareBtn').onclick=async()=>{const l=new URL(location.href);l.searchParams.set('room',session?.code||'');try{await navigator.clipboard.writeText(l.href);announce('קישור ההזמנה הועתק')}catch{announce('שתף את הקישור: '+l.href)}};
 $('resultAgain').onclick=()=>{$('againBtn').click();hideResult();roomView();announce('ממתינים למשחק חוזר…');};
 $('resultLeave').onclick=()=>$('leaveBtn').click();
-$('leaveBtn').onclick=()=>{manualLeave=true;send({type:'leave'});closeSocket();clearSession();menuView();announce('יצאת מהחדר')};
+$('leaveBtn').onclick=()=>{autoReadyWhenLoaded=false;manualLeave=true;send({type:'leave'});closeSocket();clearSession();menuView();announce('יצאת מהחדר')};
 async function setupFrame(){let attempt=0;while(attempt++<110){try{const f=$('original').contentWindow;const bridge=f.eval('({game,renderer,assets,wardrobe,controls})');if(bridge?.game&&bridge?.renderer&&bridge.assets.loaded&&bridge.wardrobe){
-await bridge.game.wallet.ready;
-if(!bridge.game.wallet.user&&typeof bridge.game.wallet.cloudLoad==='function'){
- try{await bridge.game.wallet.cloudLoad()}catch(e){console.warn('Optional account refresh unsuccessful',e)}
-}
+await Promise.race([Promise.resolve(bridge.game.wallet.ready).catch(()=>{}),new Promise(resolve=>setTimeout(resolve,3500))]);
+// Do not refetch the cloud profile synchronously here: it can keep the entire
+// multiplayer UI waiting when auth or the remote save provider is slow.
+// wallet.ready already supplies the initial local/account state.
 // Wait for the real account and ownership to finish loading.
 // Read cosmetics from the original game, but never write an online round to its save.
 bridge.game.wallet.save=()=>{};bridge.game.wallet.flush=async()=>{};bridge.game.wallet.record=()=>{};
@@ -339,7 +424,19 @@ frame=bridge;appReady=true;
 // invisible in online mode and waste CPU/GPU time beside multiplayer drawing.
 if(typeof bridge.wardrobe.animatePreview==='function')bridge.wardrobe.animatePreview=()=>{};
 // Online-only pixel cap: the original 4K canvas can stall desktop browsers when running inside an iframe.
-const baseResize=bridge.renderer.resize;bridge.renderer.maxPixelBudget=950000;bridge.renderer.resize=function(...args){baseResize.apply(this,args);const pixels=this.canvas.width*this.canvas.height;if(pixels>this.maxPixelBudget){const scale=Math.sqrt(this.maxPixelBudget/pixels);this.canvas.width=Math.round(this.canvas.width*scale);this.canvas.height=Math.round(this.canvas.height*scale);this.dpr*=scale;}};bridge.renderer.resize();$('splash').style.display='none';$('options').style.display='block';syncAccountProfile();$('difficulty').value=bridge.game.difficulty||'normal';const css=f.document.createElement('style');css.textContent='#overlay,#hud,#subhud,#controls,#notice,#bossStatus{display:none!important}html,body{touch-action:none!important}';f.document.head.appendChild(css);announce('המנוע המקורי נטען. אפשר לפתוח חדר.');if(session?.token&&/^\d{6}$/.test(session.code||'')){startSocket(()=>send({type:'resume',protocol:PROTOCOL,...session}));}return;}}catch(e){if(attempt===110)announce('לא ניתן לטעון את המשחק המקורי: '+e.message)}await new Promise(r=>setTimeout(r,350))}announce('טעינת המשחק נכשלה. בדוק ש־index.html קיים באותו אתר.');}
+const baseResize=bridge.renderer.resize;bridge.renderer.maxPixelBudget=950000;bridge.renderer.resize=function(...args){baseResize.apply(this,args);const pixels=this.canvas.width*this.canvas.height;if(pixels>this.maxPixelBudget){const scale=Math.sqrt(this.maxPixelBudget/pixels);this.canvas.width=Math.round(this.canvas.width*scale);this.canvas.height=Math.round(this.canvas.height*scale);this.dpr*=scale;}};bridge.renderer.resize();$('splash').style.display='none';$('options').style.display=room?'none':'block';
+ if(room&&profile){$('hero').value=profile.hero;}// Honor the hero already sent to the server.
+ syncAccountProfile();
+ if(room?.status==='waiting'&&session){
+  profile={...profile,hero:$('hero').value||profile?.hero||'luzo',name:String($('nickname').value||profile?.name||'שחקן').slice(0,24),gear:{...bridge.wardrobe.equipped}};
+  send({type:'profile',...profile}); // Correct the room roster before starting.
+ }
+ if(!room)$('difficulty').value=bridge.game.difficulty||'normal';const css=f.document.createElement('style');css.textContent='#overlay,#hud,#subhud,#controls,#notice,#bossStatus{display:none!important}html,body{touch-action:none!important}';f.document.head.appendChild(css);if(autoReadyWhenLoaded&&room?.status==='waiting'&&session){
+  autoReadyWhenLoaded=false;send({type:'ready',ready:true});announce('המשחק נטען. אתה מוכן! מחכה לחבר.');
+ }else if(room){announce('המשחק נטען. אפשר ללחוץ ״אני מוכן״.');}
+ else announce('המנוע המקורי נטען. אפשר לפתוח חדר.');
+ if(session?.token&&!ws&&/^\d{6}$/.test(session.code||'')){startSocket(()=>send({type:'resume',protocol:PROTOCOL,...session}));}
+ return;}}catch(e){if(attempt===110)announce('טעינת הגרפיקה נכשלה: '+e.message)}await new Promise(r=>setTimeout(r,350))}announce(room?'החדר קיים, אבל הגרפיקה לא נטענה. נסה לרענן את העמוד.':'לא ניתן לטעון את הגרפיקה. אפשר ליצור חדר, אבל כדי לשחק יש לרענן את העמוד.');}
 setupFrame();
 })();
 </script>
