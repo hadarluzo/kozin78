@@ -208,7 +208,20 @@ function beginRoom(kind){
 }
 function onMessage(m){
  if(m.type==='hello'){if(m.protocol!==PROTOCOL){announce('גרסת שרת לא תואמת');return}}
- if(m.type==='joined'){session={code:m.code,id:m.id,token:m.token};saveSession();room={code:m.code};reconnectStart=0;ready=false;roomView();$('roomCode').textContent=m.code;announce(appReady?'מחובר לחדר! מחכה לחבר.':'החדר נוצר בהצלחה! טוען את המשחק כדי שתוכל להתחיל.');$('pauseChip').style.display='none';}
+ if(m.type==='joined'){
+  session={code:m.code,id:m.id,token:m.token};saveSession();room={code:m.code};reconnectStart=0;ready=false;
+  roomView();$('roomCode').textContent=m.code;
+  announce(appReady?'מחובר לחדר! מחכה לחבר.':'החדר נוצר בהצלחה! טוען את המשחק כדי שתוכל להתחיל.');
+  $('pauseChip').style.display='none';
+  // If the assets happened to finish while the socket was connecting,
+  // publish the real account name, unlocked character and equipped outfit.
+  if(appReady&&frame&&profile){
+   syncAccountProfile();
+   profile={...profile,name:String($('nickname').value||profile.name).slice(0,24),
+    hero:$('hero').value||profile.hero,gear:{...frame.wardrobe.equipped}};
+   send({type:'profile',...profile});
+  }
+ }
  if(m.type==='room'){
   room=m;rememberRoster(m.players);activeRound=m.round||activeRound;$('roomCode').textContent=m.code;$('waitingPlayers').textContent=(m.players||[]).map(p=>`${p.name} (${heroName(p.hero)}) ${p.connected?'●':'◌'} ${p.ready?'✓ מוכן':'ממתין'}`).join('  |  ');ready=!!m.players?.find(p=>p.id===session?.id)?.ready;$('readyBtn').textContent=ready?'מוכן ✓':'אני מוכן';
   if(m.status==='waiting'){running=false;latest=null;remote=null;smoothSelf=smoothChaser=smoothRemote=null;roomView();$('readyBtn').style.display='inline-flex';$('againBtn').style.display='none';if(autoReadyWhenLoaded&&!appReady)$('readyBtn').textContent='ממתין לטעינת המשחק…';announce(appReady?'שני שחקנים צריכים ללחוץ ״אני מוכן״':'החדר מחובר. טוען גרפיקה ודמויות לפני תחילת המרדף…');}
@@ -375,7 +388,7 @@ addEventListener('keydown',e=>{if(/INPUT|SELECT|TEXTAREA/.test(document.activeEl
 function hidden(v){if(running||room?.status==='running'){hold(false);send({type:'away',away:v});$('pauseChip').style.display=v?'block':'none';}}
 document.addEventListener('visibilitychange',()=>hidden(document.hidden));addEventListener('pagehide',()=>hidden(true));addEventListener('blur',()=>hold(false));
 $('createBtn').onclick=()=>beginRoom('create');$('joinBtn').onclick=()=>beginRoom('join');$('readyBtn').onclick=()=>{
- if(!appReady){autoReadyWhenLoaded=!ready;announce('החדר נוצר! הגרפיקה נטענת. כשתסיים המשחק יסמן אותך כמוכן.');$('readyBtn').textContent='מכין את המשחק…';return}
+ if(!appReady){autoReadyWhenLoaded=!autoReadyWhenLoaded;announce(autoReadyWhenLoaded?'החדר נוצר! ממתין לטעינת הגרפיקה לפני תחילת המשחק.':'המתנה למוכנות בוטלה.');$('readyBtn').textContent=autoReadyWhenLoaded?'מכין את המשחק…':'אני מוכן';return}
  autoReadyWhenLoaded=false;send({type:'ready',ready:!ready});
 };$('againBtn').onclick=()=>{send({type:'rematch'});$('againBtn').disabled=true;setTimeout(()=>$('againBtn').disabled=false,1200)};
 $('shareBtn').onclick=async()=>{const l=new URL(location.href);l.searchParams.set('room',session?.code||'');try{await navigator.clipboard.writeText(l.href);announce('קישור ההזמנה הועתק')}catch{announce('שתף את הקישור: '+l.href)}};
