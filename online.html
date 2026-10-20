@@ -35,7 +35,12 @@
 /* Mirror the original game's controls: #run left, #jump right,
    and a 2-column fight cluster at the middle-right of the screen.
    Do not use the old bottom flex row: on iPhones it overcrowded all buttons. */
-#touchControls{position:absolute;inset:0;left:0;right:0;bottom:auto;z-index:8;display:none;pointer-events:none;direction:ltr;align-items:initial;justify-content:initial}
+#touchControls{position:absolute;inset:0;left:0;right:0;bottom:auto;z-index:15;display:none;pointer-events:none;direction:ltr;align-items:initial;justify-content:initial}
+body.online-controls-visible #touchControls{display:block!important}
+#touchControls .arcade,#touchControls .fight{pointer-events:auto!important}
+#touchControls.controls-waiting button{filter:saturate(.72)}
+#controlHint{position:absolute;bottom:118px;left:50%;transform:translateX(-50%);background:#091b29d9;color:#fff1b9;border:1px solid #d7b67e;border-radius:8px;padding:6px 11px;direction:rtl;font-size:12px;white-space:nowrap;pointer-events:none;display:none}
+#touchControls.controls-waiting #controlHint{display:block}
 #touchControls button{pointer-events:auto;touch-action:none;-webkit-user-select:none;user-select:none}
 #touchControls .arcade{position:absolute;bottom:max(24px,env(safe-area-inset-bottom));height:86px;width:145px;min-width:0;min-height:0;padding:8px 5px;background:linear-gradient(#1b597b,#0a2843);border:2px solid #ddc58b;outline:2px solid #081729;border-radius:17px;color:#ffda84;font-size:30px;font-weight:1000;text-shadow:2px 2px #081729;box-shadow:inset 0 3px #80bbce,0 5px #020c1a}
 #touchControls .arcade:active{transform:translateY(5px)}
@@ -59,7 +64,7 @@
 <div id="resultView" role="dialog" aria-label="תוצאות המשחק"><section id="resultPanel"><div id="resultTitle">הפסדתם</div><p id="resultSummary"></p><p id="resultDistance"></p><div id="resultActions"><button class="btn" id="resultAgain">משחק חוזר</button><button class="btn dark" id="resultLeave">חזרה ללובי</button></div></section></div>
 <div id="introOverlay" class="intro-overlay" aria-live="assertive" aria-atomic="true"><div id="introText" class="intro-content">3</div></div>
 <div id="perfTag" style="display:none;position:absolute;z-index:12;top:52px;right:10px;background:#07212bce;color:#b9f0d9;padding:6px 10px;border-radius:9px;font:700 12px Arial;direction:ltr;pointer-events:none">FPS -- · NET --</div><div id="pauseChip">ממתינים לחיבור מחדש…</div><div id="startupChip">יתרון פתיחה · 6 שניות</div>
-<div id="touchControls"><button class="run arcade" id="runBtn">רוץ<em>מחזיקים כדי לרוץ</em></button><div id="attack"><button id="powerBtn" class="fight special">כוח<em id="powerClock">מיוחד</em></button><button id="kickBtn" class="fight">בעיטה</button><button id="punchBtn" class="fight">אגרוף</button></div><button class="arcade" id="jumpBtn">קפיצה<em>לחיצה נוספת: פעלול</em></button></div>
+<div id="touchControls"><button class="run arcade" id="runBtn">רוץ<em>מחזיקים כדי לרוץ</em></button><div id="attack"><button id="powerBtn" class="fight special">כוח<em id="powerClock">מיוחד</em></button><button id="kickBtn" class="fight">בעיטה</button><button id="punchBtn" class="fight">אגרוף</button></div><button class="arcade" id="jumpBtn">קפיצה<em>לחיצה נוספת: פעלול</em></button><div id="controlHint">המשחק מתחיל בעוד רגע…</div></div>
 <div id="veil"><div id="panel">
 <h1>המרדף של קוזין</h1><p>אונליין · שני חברים בורחים יחד מקוזין</p><p class="muted">אותה גרפיקה ומנוע משחק מקוריים. כל אחד רואה את המצלמה שלו.</p>
 <div id="options"><label for="nickname">שם המשתמש במשחק</label><input id="nickname" readonly aria-readonly="true" placeholder="שם החשבון או שם זמני" maxlength="24" autocomplete="nickname"><p class="muted" id="accountNote">טוען את פרופיל השחקן...</p><div class="twocol"><div><label for="heroPicker">הדמות שלי</label><select id="hero" hidden aria-hidden="true"></select><button type="button" id="heroPicker" class="hero-picker" aria-haspopup="dialog"><canvas id="chosenHeroPortrait" width="74" height="74"></canvas><span id="chosenHeroName">בחר דמות</span><span class="chevron">⌄</span></button></div><div><label for="difficulty">רמת קושי</label><select id="difficulty"><option value="easy">קל</option><option value="normal" selected>בינוני</option><option value="hard">קשה</option><option value="impossible">בלתי אפשרי</option></select></div></div>
@@ -155,7 +160,7 @@ const announce=s=>$('status').textContent=s;
 const send=m=>{if(ws?.readyState===WebSocket.OPEN)try{ws.send(JSON.stringify(m));return true}catch{}return false};
 const hideResult=()=>{$('resultView').style.display='none'};
 const roomView=()=>{hideResult();$('options').style.display='none';$('roomSection').style.display='block';$('veil').classList.remove('hidden');$('touchControls').style.display='none';$('hud').style.display='none';};
-const menuView=()=>{autoReadyWhenLoaded=false;profile=null;gameCanvasRevealed=false;hideResult();$('options').style.display='block';$('roomSection').style.display='none';$('veil').classList.remove('hidden');$('touchControls').style.display='none';$('hud').style.display='none';room=null;running=false;ready=false;activeRound=null;roomRoster.clear();$('startupChip').style.display='none';};
+const menuView=()=>{document.body.classList.remove('online-controls-visible');autoReadyWhenLoaded=false;profile=null;gameCanvasRevealed=false;hideResult();$('options').style.display='block';$('roomSection').style.display='none';$('veil').classList.remove('hidden');$('touchControls').style.display='none';$('hud').style.display='none';room=null;running=false;ready=false;activeRound=null;roomRoster.clear();$('startupChip').style.display='none';};
 // All rooms show the cinematic intro, including older live Render servers
 // whose snapshots lack startDelay. The server remains authoritative when
 // a startDelay is advertised; fallback uses the local start event clock.
@@ -170,7 +175,24 @@ const introSeconds=()=>{
  return Math.min(4,Math.max(0,(performance.now()-(introStartedAt||performance.now()))/1000));
 };
 const inCountdown=()=>running&&introSeconds()<4;
-const playView=()=>{hideResult();$('veil').classList.add('hidden');$('touchControls').style.display=inCountdown()?'none':'flex';$('hud').style.display='flex';$('splash').style.display='none';};
+const playView=()=>{
+ hideResult();$('veil').classList.add('hidden');
+ // Never hide the actual controls to express a countdown. When the server is
+ // lagging or paused, invisible buttons make the entire game unplayable.
+ document.body.classList.add('online-controls-visible');
+ $('touchControls').style.display='block';
+ $('hud').style.display='flex';$('splash').style.display='none';
+ syncControlState();
+};
+function syncControlState(){
+ const controls=$('touchControls');
+ const waiting=running&&inCountdown();
+ controls.classList.toggle('controls-waiting',waiting);
+ const hint=$('controlHint');
+ if(room?.paused){hint.textContent='מחכים לחיבור של החבר…';controls.classList.add('controls-waiting')}
+ else if(waiting){hint.textContent='3 · 2 · 1 — עוד רגע רצים!'}
+ else hint.textContent='';
+}
 const INTRO_LINES=['3','2','1','רוצו על נפשותיכם מהמפלצת!!'];
 let introStage=-1,autoReadyWhenLoaded=false,gameCanvasRevealed=false,consecutiveFastSamples=0,pingMs=null;
 function updateIntro(){
@@ -178,12 +200,16 @@ function updateIntro(){
  if(!running||latest?.outcome||!inCountdown()){
   if(overlay.style.display!=='none')overlay.style.display='none';
   introStage=-1;
-  if(running&&appReady&&!latest?.outcome&&$('touchControls').style.display!=='flex')
-   $('touchControls').style.display='flex';
+  if(running&&appReady&&!latest?.outcome){
+   if($('veil').classList.contains('hidden')&&!document.body.classList.contains('online-controls-visible'))playView();
+   else if($('touchControls').style.display!=='block')$('touchControls').style.display='block';
+  }
+  if(document.body.classList.contains('online-controls-visible'))syncControlState();
   return;
  }
  const stage=Math.max(0,Math.min(3,Math.floor(introSeconds())));
  overlay.style.display='flex';
+ if(document.body.classList.contains('online-controls-visible'))syncControlState();
  if(stage===introStage)return;
  introStage=stage;
  overlay.className='intro-overlay '+(stage===0?'count count-red':stage===1?'count count-yellow':stage===2?'count count-green':'go');
@@ -309,14 +335,14 @@ function onMessage(m){
    for(const p of m.players||[])warmupHero(p.hero,p.gear||{});activeRound=m.round||activeRound;$('roomCode').textContent=m.code;$('waitingPlayers').textContent=(m.players||[]).map(p=>`${p.name} (${heroName(p.hero)}) ${p.connected?'●':'◌'} ${p.ready?'✓ מוכן':'ממתין'}`).join('  |  ');ready=!!m.players?.find(p=>p.id===session?.id)?.ready;$('readyBtn').textContent=ready?'מוכן ✓':'אני מוכן';
   if(m.status==='waiting'){running=false;latest=null;remote=null;smoothSelf=smoothChaser=smoothRemote=null;roomView();$('readyBtn').style.display='inline-flex';$('againBtn').style.display='none';if(autoReadyWhenLoaded&&!appReady)$('readyBtn').textContent='ממתין לטעינת המשחק…';announce(appReady?'שני שחקנים צריכים ללחוץ ״אני מוכן״':'החדר מחובר. טוען גרפיקה ודמויות לפני תחילת המרדף…');}
   if(m.status==='finished'){running=false;if(latest?.outcome)showResult(latest.outcome);else {roomView();$('readyBtn').style.display='none';$('againBtn').style.display='inline-flex';}}
-  if(m.status==='running'){$('pauseChip').style.display=m.paused?'block':'none';if(!m.paused)playView();}
+  if(m.status==='running'){$('pauseChip').style.display=m.paused?'block':'none';if(!m.paused)playView();else if(document.body.classList.contains('online-controls-visible'))syncControlState();}
  }
  if(m.type==='started'){warmupQueue.length=0;running=true;held=false;introStartedAt=performance.now();gameCanvasRevealed=false;introStage=-1;seq=0;latest=null;remote=null;smoothSelf=smoothChaser=smoothRemote=null;visualJump=null;lastSnapshotAt=0;lastPaintTime=0;if(frame?.game){frame.game.__onlineStarted=false;}activeRound=m.round||activeRound;revealGameCanvas();playView();announce('המרדף התחיל!');sendInput(false);}
  if(m.type==='snapshot'){
   if(!session||m.code!==session.code)return;if(activeRound&&m.round&&m.round!==activeRound)return;lastSnapshotAt=performance.now();const players=enrichedPlayers(m.players);rememberRoster(players);const wasFinished=latest?.outcome;latest={...m,players};
   if(!frame?.game||!appReady)return;
   if(m.outcome){running=false;held=false;if(!wasFinished)showResult(m.outcome);}
-  else{running=true;if($('veil').classList.contains('hidden')===false||$('touchControls').style.display!==(inCountdown()?'none':'flex'))playView();}
+  else{running=true;if($('veil').classList.contains('hidden')===false||$('touchControls').style.display!=='block'||!document.body.classList.contains('online-controls-visible'))playView();}
   updateGame(latest);updateHud();
   if(m.outcome)showResult(m.outcome);
   updateIntro();
@@ -337,7 +363,7 @@ function showResult(outcome){
  const me=getOwn(),distance=Math.round(Math.max(0,(me?.player?.x||320)-320)/10);
  $('resultDistance').textContent='התקדמתם '+distance+' מטר · קוזין '+Math.max(0,Math.round(latest?.chaser?.energy||0))+'%';
  $('resultView').style.display='flex';$('introOverlay').style.display='none';
- $('touchControls').style.display='none';
+ document.body.classList.remove('online-controls-visible');$('touchControls').style.display='none';
  $('veil').classList.add('hidden');
  $('startupChip').style.display='none';
 }
