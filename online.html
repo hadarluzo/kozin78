@@ -469,11 +469,11 @@ function revealGameCanvas(){if(gameCanvasRevealed)return;const doc=$('original')
 }
 function updateGame(m){const me=m.players.find(p=>p.id===session?.id),other=m.players.find(p=>p.id!==session?.id);if(!me||!frame)return;const g=frame.game;
  if(!g.__onlineStarted){g.difficulty=m.difficulty||'normal';g.start();g.update=()=>{};g.events=[];g.__onlineStarted=true;frame.renderer.reset(g)}
- revealGameCanvas();g.state='playing';g.wallet.selected=me.hero;g.player={...g.player,...me.player};g.power=Object.assign(g.power,me.power||{});
- g.combat=Object.assign(g.combat,me.combat||{});g.combat.enemies=m.enemies||[];g.chaser={...g.chaser,...m.chaser};g.boss=Object.assign(g.boss,m.boss||{});
+ revealGameCanvas();g.state='playing';g.wallet.selected=me.hero;Object.assign(g.player,me.player);g.power=Object.assign(g.power,me.power||{});
+ g.combat=Object.assign(g.combat,me.combat||{});g.combat.enemies=m.enemies||[];Object.assign(g.chaser,m.chaser);g.boss=Object.assign(g.boss,m.boss||{});
  g.obstacles=m.obstacles||[];g.foods=m.foods||[];g.mapIndex=m.mapIndex||0;g.distance=me.distance||0;g.time=m.time||0;
  for(const k of ['score','count','combo','maxCombo','hits','missed','cleared','shield','grace','celebration','particles','popups','bubbles'])if(k in me)g[k]=me[k];
- g.input={running:me.run===true,lifting:me.lift===true,clear(){this.running=false;this.lifting=false;}};
+ g.input.running=me.run===true;g.input.lifting=me.lift===true;
  remote=other||null;patchRenderer();
 }
 // DOM updates can trigger expensive layout and style work in mobile Safari.
