@@ -274,7 +274,7 @@ function scheduleWarmup(){
  warmupScheduled=true;
  const pump=()=>{
   warmupScheduled=false;
-  if(running&&!inCountdown())return;
+  if(running){warmupQueue.length=0;return;}
   const item=warmupQueue.shift();
   if(item&&frame?.wardrobe?.ready){
    try{frame.wardrobe.getFrame(item.hero,item.index,item.gear)}
@@ -311,7 +311,7 @@ function onMessage(m){
   if(m.status==='finished'){running=false;if(latest?.outcome)showResult(latest.outcome);else {roomView();$('readyBtn').style.display='none';$('againBtn').style.display='inline-flex';}}
   if(m.status==='running'){$('pauseChip').style.display=m.paused?'block':'none';if(!m.paused)playView();}
  }
- if(m.type==='started'){running=true;held=false;introStartedAt=performance.now();gameCanvasRevealed=false;introStage=-1;seq=0;latest=null;remote=null;smoothSelf=smoothChaser=smoothRemote=null;visualJump=null;lastSnapshotAt=0;lastPaintTime=0;if(frame?.game){frame.game.__onlineStarted=false;}activeRound=m.round||activeRound;revealGameCanvas();playView();announce('המרדף התחיל!');sendInput(false);}
+ if(m.type==='started'){warmupQueue.length=0;running=true;held=false;introStartedAt=performance.now();gameCanvasRevealed=false;introStage=-1;seq=0;latest=null;remote=null;smoothSelf=smoothChaser=smoothRemote=null;visualJump=null;lastSnapshotAt=0;lastPaintTime=0;if(frame?.game){frame.game.__onlineStarted=false;}activeRound=m.round||activeRound;revealGameCanvas();playView();announce('המרדף התחיל!');sendInput(false);}
  if(m.type==='snapshot'){
   if(!session||m.code!==session.code)return;if(activeRound&&m.round&&m.round!==activeRound)return;lastSnapshotAt=performance.now();const players=enrichedPlayers(m.players);rememberRoster(players);const wasFinished=latest?.outcome;latest={...m,players};
   if(!frame?.game||!appReady)return;
@@ -343,8 +343,14 @@ function showResult(outcome){
 }
 function patchRenderer(){
  if(renderInstalled||!frame)return;
- const r=frame.renderer,orig=r.draw,origCam=r.updateCamera;
+ const r=frame.renderer,orig=r.draw,origCam=r.updateCamera,origCapture=r.captureMotion;
  let remoteAvatar=null,remoteAvatarSource=null;
+ // The standalone engine runs a 120Hz simulation loop even though the
+ // multiplayer world is updated on the server. Avoid capturing throwaway
+ // interpolation snapshots 120 times a second inside the online iframe.
+ if(typeof origCapture==='function')r.captureMotion=function(g){
+  if(!g?.__onlineStarted)return origCapture.call(this,g);
+ };
  renderInstalled=true;
  // Keep authoritative server snapshots separate from display-only interpolation.
  const interp=(last,target,k)=>{
@@ -354,7 +360,11 @@ function patchRenderer(){
  };
  r.updateCamera=function(g,dt){
   if(!smoothSelf)return origCam.call(this,g,dt);
-  return origCam.call(this,{...g,player:{...g.player,x:smoothSelf.x,y:smoothSelf.y}},dt);
+  // No object graph allocation in the 120Hz camera path.
+  const x=g.player.x,y=g.player.y;
+  g.player.x=smoothSelf.x;g.player.y=smoothSelf.y;
+  try{return origCam.call(this,g,dt)}
+  finally{g.player.x=x;g.player.y=y}
  };
  // This is the actual draw entry point invoked by the original game's RAF.
  // Previously drawInterpolated existed but was never called, so all motion
