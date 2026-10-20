@@ -473,6 +473,7 @@ function updateGame(m){const me=m.players.find(p=>p.id===session?.id),other=m.pl
  g.combat=Object.assign(g.combat,me.combat||{});g.combat.enemies=m.enemies||[];Object.assign(g.chaser,m.chaser);g.boss=Object.assign(g.boss,m.boss||{});
  g.obstacles=m.obstacles||[];g.foods=m.foods||[];g.mapIndex=m.mapIndex||0;g.distance=me.distance||0;g.time=m.time||0;
  for(const k of ['score','count','combo','maxCombo','hits','missed','cleared','shield','grace','celebration','particles','popups','bubbles'])if(k in me)g[k]=me[k];
+ if(!g.input)g.input={running:false,lifting:false,clear(){this.running=false;this.lifting=false;}};
  g.input.running=me.run===true;g.input.lifting=me.lift===true;
  remote=other||null;patchRenderer();
 }
