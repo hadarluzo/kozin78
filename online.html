@@ -430,7 +430,7 @@ function patchRenderer(){
  const originalDraw=r.draw.bind(r);
  const originalUpdateCamera=r.updateCamera.bind(r);
  const defaultGear=frame.wardrobe.equipped;
- let previousRemoteId=null,remoteAppearance=null;
+ let previousRemoteId=null,previousRemotePacket=null,remoteAppearance=null,remoteLabel='';
 
  function paintTeammate(game,friend){
   const canvasCtx=r.ctx,camera=r.camera;
@@ -442,17 +442,22 @@ function patchRenderer(){
   const age=Math.min(.085,Math.max(0,(now-lastSnapshotAt)/1000));
   const nextX=source.x+(friend.run?Math.min(700,Number(friend.currentSpeed)||425)*age:0);
   const nextY=Math.max(0,source.y||0);
+  const dt=Math.min(.05,Math.max(.001,(now-lastOnlineFrame)/1000||.016));
+  const remoteRunning=!!friend.run&&!source.blocked;
+  const remoteSpeed=Math.min(700,Math.max(0,Number(friend.currentSpeed)||425));
   if(!renderedFriend||Math.abs(renderedFriend.x-nextX)>500||previousRemoteId!==friend.id)
    renderedFriend={x:nextX,y:nextY,phase:source.phase||0};
   else{
-   const dt=Math.min(.06,(now-lastOnlineFrame)/1000||.016);
    const factor=1-Math.exp(-16*dt);
    renderedFriend.x+=(nextX-renderedFriend.x)*factor;
    renderedFriend.y+=(nextY-renderedFriend.y)*factor;
-   renderedFriend.phase+=(Number(source.phase||0)-renderedFriend.phase)*factor;
   }
-  if(previousRemoteId!==friend.id){
-   previousRemoteId=friend.id;
+  // Original renderer expects phase measured in 30 world-pixel increments.
+  // Network phases arrive only 20 times/sec. Advance locally every paint.
+  if(remoteRunning && !source.jumps)renderedFriend.phase+=remoteSpeed*dt/30;
+  else if(!remoteRunning)renderedFriend.phase=Number(source.phase)||renderedFriend.phase;
+  if(previousRemoteId!==friend.id||previousRemotePacket!==friend){
+   previousRemoteId=friend.id;previousRemotePacket=friend;
    remoteAppearance={wallet:{...game.wallet,selected:hero},
     gear:{...(roomRoster.get(friend.id)?.gear||{}),...(friend.gear||{})},
     power:{},combat:{},input:{running:false}};
@@ -469,41 +474,50 @@ function patchRenderer(){
    r.text((screenX<0?'→ ':'← ')+name,edge,Math.max(95,r.ground-204),15,'#8bf8ff',true);
    return;
   }
-  // Draw an always-visible cyan silhouette under the original sprite. If a
-  // particular original hero sheet is still loading, this silhouette and name
-  // prevent the other player disappearing into the background.
-  canvasCtx.save();
-  try{
-   canvasCtx.globalAlpha=.88;
-   canvasCtx.fillStyle='#28c2e8';
-   canvasCtx.beginPath();canvasCtx.ellipse(screenX,feetY-140,23,23,0,0,Math.PI*2);canvasCtx.fill();
-   canvasCtx.fillRect(screenX-21,feetY-120,42,83);
-   canvasCtx.globalAlpha=.32;
-   canvasCtx.fillRect(screenX-28,feetY-36,56,27);
-  }finally{canvasCtx.restore()}
+  // Do not paint a second opaque placeholder underneath a valid avatar.
+  // The cyan fallback is used only when the character artwork is absent.
   const ownGear=frame.wardrobe.equipped;
+  const remoteCostume=remoteAppearance.gear.outfit;
+  const hasCharacterArt=!!(
+   (remoteCostume&&frame.wardrobe.costumes?.[hero]?.[remoteCostume]?.[8])||
+   (hero==='luzo'?frame.assets?.runFrames?.length:frame.assets?.heroFrames?.[hero]?.length)
+  );
+  let fallback=!hasCharacterArt;
   frame.wardrobe.equipped=remoteAppearance.gear;
   try{
    Object.assign(remoteAppearance.power,game.power,friend.power||{});
    Object.assign(remoteAppearance.combat,game.combat,friend.combat||{});
    remoteAppearance.input.running=!!friend.run;
-   const player={...source,x:visibleX,y:renderedFriend.y,phase:renderedFriend.phase};
+   const player={...source,x:visibleX,y:renderedFriend.y,
+    phase:renderedFriend.phase,invincible:0};
    const actor={...game,player,wallet:remoteAppearance.wallet,
     power:remoteAppearance.power,combat:remoteAppearance.combat,
     input:remoteAppearance.input,grace:0};
-   canvasCtx.save();
-   try{canvasCtx.globalAlpha=.85;r.character(actor,false)}
-   finally{canvasCtx.restore()}
+   if(hasCharacterArt){
+    canvasCtx.save();
+    try{canvasCtx.globalAlpha=.58;r.character(actor,false)}
+    finally{canvasCtx.restore()}
+    fallback=false;
+   }
    remoteRenderFailure=null;
   }catch(error){
+   fallback=true;
    if(!remoteRenderFailure || remoteRenderFailure!==String(error)){
     remoteRenderFailure=String(error);
     console.warn('Remote character could not be drawn; cyan fallback is visible',error);
    }
   }finally{frame.wardrobe.equipped=ownGear}
+  if(fallback){
+   canvasCtx.save();
+   try{
+    canvasCtx.globalAlpha=.38;
+    canvasCtx.fillStyle='#28c2e8';
+    canvasCtx.beginPath();canvasCtx.ellipse(screenX,feetY-140,23,23,0,0,Math.PI*2);canvasCtx.fill();
+    canvasCtx.fillRect(screenX-21,feetY-120,42,83);
+    canvasCtx.fillRect(screenX-28,feetY-36,56,27);
+   }finally{canvasCtx.restore()}
+  }
   r.text(name,screenX,feetY-214,16,'#8bf8ff',true);
-  canvasCtx.strokeStyle='#64ecff';canvasCtx.lineWidth=2;
-  canvasCtx.strokeRect(screenX-34,feetY-198,68,166);
  }
  r.drawInterpolated=function(game){
   if(game.state!=='playing'){return}
@@ -520,7 +534,10 @@ function patchRenderer(){
    if(held && age<.15)renderedSelf.x+=speed*dt;
    renderedSelf.x+=(targetX-renderedSelf.x)*(1-Math.exp(-8*dt));
    renderedSelf.y+=(targetY-renderedSelf.y)*(1-Math.exp(-25*dt));
-   renderedSelf.phase+=(Number(game.player.phase||0)-renderedSelf.phase)*(1-Math.exp(-15*dt));
+   // Draw run poses continuously between snapshots using engine distance/30.
+   // Snapshot-only phase updates previously made the runner look frozen.
+   if((held||game.input?.running)&&!game.player.blocked&&!game.player.jumps)
+    renderedSelf.phase+=speed*dt/30;
   }
   // Always show an immediate jump on touch, without waiting for a snapshot.
   if(visualJump && now-visualJump.at<800){
@@ -530,8 +547,9 @@ function patchRenderer(){
   if(visualJump && now-visualJump.at>=800)visualJump=null;
   const player=game.player,chaser=game.chaser;
   const ox=player.x,oy=player.y,op=player.phase;
-  const cameraY=r.camera;
+  const originalRunning=game.input?.running;
   player.x=renderedSelf.x;player.y=renderedSelf.y;player.phase=renderedSelf.phase;
+  if(game.input)game.input.running=(held||originalRunning)&&!player.blocked;
   try{
    originalUpdateCamera(game,dt);
    originalDraw(game);
@@ -541,6 +559,7 @@ function patchRenderer(){
     r.text('החבר מתחבר…',r.width-120,Math.max(95,r.ground-200),15,'#8bf8ff',true);
   }finally{
    player.x=ox;player.y=oy;player.phase=op;
+   if(game.input)game.input.running=originalRunning;
   }
   lastOnlineFrame=now;
   onlineFrames++;

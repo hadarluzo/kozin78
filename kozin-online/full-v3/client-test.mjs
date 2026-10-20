@@ -26,7 +26,8 @@ sync();
 assert.deepEqual(options.map(o=>o.value),['luzo']);
 assert.equal(elems.nickname.readOnly,false,'guest can enter an explicit temporary display name');
 assert.notEqual(elems.nickname.value,'אורח','do not invent a guest username');
-assert(html.includes('canvasCtx.globalAlpha=.85'),'only the remote avatar is translucent');
+assert(html.includes('canvasCtx.globalAlpha=.58'),'remote avatar opacity is explicitly 58 percent');
+assert(!html.includes('canvasCtx.strokeRect(screenX-34'),'debug bounding rectangle must be removed');
 assert(html.includes("outcome.perPlayer?.[session.id]"),'win/loss checks current player id');
 
 const beginStart=html.indexOf('function beginRoom(kind){');
@@ -88,7 +89,7 @@ console.log('PASS synchronized colored countdown, blood-effect warning and local
  const a=html.indexOf('let cleanAnimationStarted=false');
  const b=html.indexOf('\nfunction revealGameCanvas()',a);
  assert(a>0&&b>a,'new renderer implementation exists');
- let draws=0,faceX=0,avatar=null,labels=[],silhouettes=0;
+ let draws=0,faceX=0,avatar=null,labels=[],silhouettes=0,remoteAlpha=null;let clock=125;
  const game={__onlineStarted:true,state:'playing',
   player:{x:320,y:0,phase:0,vy:0,jumps:0,blocked:false,slow:0},
   chaser:{x:110,y:0,phase:0},profile:{speed:420,growth:0},power:{worldScale:1},
@@ -97,17 +98,18 @@ console.log('PASS synchronized colored countdown, blood-effect warning and local
   globalAlpha:1,save(){},restore(){},beginPath(){},ellipse(){silhouettes++},
   fill(){},fillRect(){},strokeRect(){},
  };
+ let windowPlayerPhase=0;
  const renderer={
-  draw(g){draws++;faceX=g.player.x},updateCamera(){},ctx:canvas,
-  character(proxy,isChaser){avatar={x:proxy.player.x,y:proxy.player.y,hero:proxy.wallet.selected,isChaser}},
+  draw(g){draws++;faceX=g.player.x;windowPlayerPhase=g.player.phase},updateCamera(){},ctx:canvas,
+  character(proxy,isChaser){remoteAlpha=canvas.globalAlpha;avatar={x:proxy.player.x,y:proxy.player.y,hero:proxy.wallet.selected,isChaser,phase:proxy.player.phase}}, 
   text(name,x){labels.push({name,x})},width:1000,camera:0,ground:520
  };
- const frame={renderer,wardrobe:{equipped:{}}};
+ const frame={renderer,assets:{heroFrames:{tzippy:[{}]}},wardrobe:{equipped:{},costumes:{}}};
  const context={frame,running:true,latest:{},remote:null,renderInstalled:false,
   roomRoster:new Map(),getOwn:()=>({currentSpeed:420,run:true}),held:true,
   visualJump:null,renderedSelf:null,renderedFriend:null,
   lastSnapshotAt:100,lastOnlineFrame:0,
-  performance:{now:()=>125},q:new URLSearchParams(''),
+  performance:{now:()=>clock},q:new URLSearchParams(''),
   pingMs:4,heroName:x=>x,$:()=>({style:{},textContent:''}),
   requestAnimationFrame(){},matchMedia:()=>({matches:true}),
   session:{id:'local'}
@@ -125,8 +127,20 @@ console.log('PASS synchronized colored countdown, blood-effect warning and local
  assert(avatar&&avatar.x>=424,'remote avatar is drawn beside the overlapping local player');
  assert.equal(avatar.hero,'tzippy','remote hero is not replaced with the local hero');
  assert(labels.some(e=>e.name.includes('חבר')),'teammate label appears on screen');
- assert(silhouettes>=1,'a visible cyan backup silhouette is always painted');
+ assert.equal(silhouettes,0,'no cyan placeholder should render beneath a valid remote sprite');
+ assert.equal(remoteAlpha,.58,'remote sprite uses 58% opacity');
+ assert(!html.includes("canvasCtx.strokeStyle='#64ecff'"),'remove debug blue rectangle');
  assert.equal(context.remote.player.x,320,'shared-server x is not mutated by visual offset');
+ const phaseBefore=avatar.phase;
+ context.remote={...context.remote,run:true};
+ clock+=50;
+ renderer.drawInterpolated(game);
+ assert(avatar.phase>phaseBefore,'running remote advances poses without a new snapshot');
+ const localPhaseBefore=windowPlayerPhase;
+ clock+=50;
+ renderer.drawInterpolated(game);
+ assert(windowPlayerPhase>localPhaseBefore,'held local run animates every drawn frame');
+ assert.equal(game.player.phase,0,'render animation must not mutate authoritative phase');
  avatar=null;labels=[];context.remote={...context.remote,player:{x:15000,y:0}};
  renderer.drawInterpolated(game);
  assert.equal(avatar,null,'expensive remote sprite is skipped when offscreen');
@@ -141,7 +155,7 @@ assert(html.includes('#touchControls #attack{position:absolute;top:44%'),'combat
 assert(html.includes('renderedFriend.x+(overlap?104:0)'),'same start location draws separate characters');
 assert(html.includes('startCleanRenderer()'),'online renderer is started after game bridge is ready');
 assert(html.includes('callback===f.frame'),'original redundant animation loop is suspended');
-console.log('PASS single renderer, visible teammate silhouette/avatar, offset and offscreen indicator');
+console.log('PASS single scene renderer, ghost alpha without rectangle, running poses and offscreen indicator');
 
 {
  const a=html.indexOf('const act=t=>');
