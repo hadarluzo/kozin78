@@ -71,4 +71,16 @@ for(const hero of ['michael','moreno']){const w=new FullWorld(profiles(hero),'ha
  assert(w.games[1].player.x>friendX,'both runners must launch with the same server start signal');
  // Different unlocked characters may have different movement speeds after the shared start.
 }
+{
+ const w=new FullWorld(profiles('luzo','tzippy'),'normal',8080,{countdown:true});
+ const detached=w.snapshot(),live=w.snapshot(false);
+ assert.deepEqual(JSON.parse(JSON.stringify(live)),detached,
+  'single-pass wire snapshot must be byte-equivalent to old detached data');
+ assert.strictEqual(live.obstacles,w.obstacles,
+  'fast wire snapshot avoids cloning the shared obstacle graph');
+ const x=w.games[0].player.x;
+ detached.players[0].player.x+=100;
+ assert.equal(w.games[0].player.x,x,
+  'normal public snapshots still protect server state from mutation');
+}
 assert.equal(CATALOG.gear.length,13);console.log('PASS full engine: 8 heroes, 13 cosmetics, freeze, carry, taxi, shared food, Buddha, independent runners');
