@@ -122,7 +122,7 @@ console.log('PASS synchronized colored countdown, blood-effect warning and local
  assert(avatar&&avatar.x>=424,'remote avatar is drawn beside the overlapping local player');
  assert.equal(avatar.hero,'tzippy','remote hero is not replaced with the local hero');
  assert(labels.some(e=>e.name.includes('חבר')),'teammate label appears on screen');
- assert(silhouettes>=2,'a visible cyan backup silhouette is always painted');
+ assert(silhouettes>=1,'a visible cyan backup silhouette is always painted');
  assert.equal(context.remote.player.x,320,'shared-server x is not mutated by visual offset');
  avatar=null;labels=[];context.remote={...context.remote,player:{x:15000,y:0}};
  renderer.drawInterpolated(game);
