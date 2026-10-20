@@ -78,5 +78,41 @@ assert(html.includes('.intro-overlay.go #introText::after'),'blood drip decorati
 assert(html.includes("if(v&&inCountdown())return"),'run button is locked while countdown is displayed');
 assert(html.includes("if(!running||inCountdown())return"),'actions are locked while countdown is displayed');
 console.log('PASS synchronized colored countdown, blood-effect warning and locally locked controls');
+
+// Exercise the real frame wrapper, not just a text snippet. The old
+// implementation defined drawInterpolated but the animation loop never used it.
+{
+ const a=html.indexOf('function patchRenderer(){');
+ const b=html.indexOf('\nfunction revealGameCanvas()',a);
+ assert(a>0&&b>a,'renderer override is available');
+ const rendererCode=html.slice(a,b);
+ let draws=0,renderedX=0;
+ const game={__onlineStarted:true,state:'playing',player:{x:320,y:0,phase:0,vy:0,jumps:0,blocked:false,slow:0},chaser:{x:110,y:0,phase:0},profile:{speed:420,growth:0},power:{worldScale:1},time:0};
+ const renderer={
+  draw(g){draws++;renderedX=g.player.x},
+  updateCamera(){},
+  ctx:{globalAlpha:1,save(){},restore(){}},character(){},text(){},
+  width:1000,maxPixelBudget:540000,resize(){}
+ };
+ const frame={renderer,wardrobe:{equipped:{}}};
+ const context={
+  frame,running:true,latest:{},remote:null,renderInstalled:false,roomRoster:new Map(),
+  getOwn:()=>({run:true,currentSpeed:420,player:{jumps:0}}),held:true,
+  smoothSelf:null,smoothChaser:null,smoothRemote:null,visualJump:null,
+  lastPaintTime:0,lastSnapshotAt:100,frameCount:0,frameSum:0,frameSampleAt:0,
+  performance:{now:()=>125},q:new URLSearchParams(''),pingMs:4,
+  heroName:s=>s,$:()=>({style:{},textContent:''}),
+  consecutiveFastSamples:0
+ };
+ vm.createContext(context);
+ vm.runInContext(rendererCode+';patchRenderer();',context);
+ renderer.draw(game);
+ assert.equal(draws,1,'one actual scene draw per animation frame');
+ assert(renderedX>320,'live draw entry point predicts locally before next server snapshot');
+ assert.equal(game.player.x,320,'display interpolation must not mutate authoritative game player');
+ game.__onlineStarted=false;renderer.draw(game);
+ assert.equal(draws,2,'normal original draw still works outside online mode');
+}
+console.log('PASS actual render-loop interpolation, per-frame local motion and original-render fallback');
 console.log('PASS named account, owned-hero gallery, guest fallback, remote transparency and per-player results');
 

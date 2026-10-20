@@ -62,7 +62,7 @@ $('nickname').readOnly=false;$('nickname').removeAttribute('aria-readonly');
 $('nickname').placeholder='שם שחקן (אפשר להשאיר ריק)';
 $('accountNote').textContent='אפשר ליצור חדר מיד. הדמויות והבגדים מהחשבון ייטענו בנפרד.';
 const starter=document.createElement('option');starter.value='luzo';starter.textContent='הדר';$('hero').append(starter);$('hero').value='luzo';
-let frame=null,ws=null,profile=null,room=null,session=null,ready=false,running=false,seq=0,held=false,latest=null,remote=null,reconnectTimer=null,reconnectStart=0,stopped=false,manualLeave=false,appReady=false,renderInstalled=false,lastSent=0,activeRound=null,smoothSelf=null,smoothChaser=null,smoothRemote=null,lastPaintTime=0,lastSnapshotAt=0,visualJump=null,frameCount=0,frameSum=0,frameSampleAt=0;const roomRoster=new Map();const HERO_LABELS={luzo:'הדר',yishai:'ישי',eyal:'אייל',moreno:'מורנו',hashi:'האשי',yona:'יונה',tzippy:'סבתא',michael:'מיכאל'};const heroName=id=>HERO_LABELS[id]||id||'דמות לא ידועה';const rememberRoster=ps=>{for(const p of ps||[]){const old=roomRoster.get(p.id)||{};roomRoster.set(p.id,{...old,...p,gear:{...(old.gear||{}),...(p.gear||{})}})}};const enrichedPlayers=ps=>(ps||[]).map(p=>{const old=roomRoster.get(p.id)||{};return {...old,...p,hero:p.hero||old.hero||'luzo',gear:{...(old.gear||{}),...(p.gear||{})}}});
+let frame=null,ws=null,profile=null,room=null,session=null,ready=false,running=false,seq=0,held=false,latest=null,remote=null,reconnectTimer=null,reconnectStart=0,stopped=false,manualLeave=false,appReady=false,renderInstalled=false,lastSent=0,activeRound=null,smoothSelf=null,smoothChaser=null,smoothRemote=null,lastPaintTime=0,lastSnapshotAt=0,introStartedAt=0,visualJump=null,frameCount=0,frameSum=0,frameSampleAt=0;const roomRoster=new Map();const HERO_LABELS={luzo:'הדר',yishai:'ישי',eyal:'אייל',moreno:'מורנו',hashi:'האשי',yona:'יונה',tzippy:'סבתא',michael:'מיכאל'};const heroName=id=>HERO_LABELS[id]||id||'דמות לא ידועה';const rememberRoster=ps=>{for(const p of ps||[]){const old=roomRoster.get(p.id)||{};roomRoster.set(p.id,{...old,...p,gear:{...(old.gear||{}),...(p.gear||{})}})}};const enrichedPlayers=ps=>(ps||[]).map(p=>{const old=roomRoster.get(p.id)||{};return {...old,...p,hero:p.hero||old.hero||'luzo',gear:{...(old.gear||{}),...(p.gear||{})}}});
 
 function drawHeroPortrait(id,canvas){
  const ctx=canvas.getContext('2d');ctx.clearRect(0,0,canvas.width,canvas.height);
@@ -140,16 +140,27 @@ const send=m=>{if(ws?.readyState===WebSocket.OPEN)try{ws.send(JSON.stringify(m))
 const hideResult=()=>{$('resultView').style.display='none'};
 const roomView=()=>{hideResult();$('options').style.display='none';$('roomSection').style.display='block';$('veil').classList.remove('hidden');$('touchControls').style.display='none';$('hud').style.display='none';};
 const menuView=()=>{autoReadyWhenLoaded=false;profile=null;gameCanvasRevealed=false;hideResult();$('options').style.display='block';$('roomSection').style.display='none';$('veil').classList.remove('hidden');$('touchControls').style.display='none';$('hud').style.display='none';room=null;running=false;ready=false;activeRound=null;roomRoster.clear();$('startupChip').style.display='none';};
-const inCountdown=()=>running&&(!latest||((latest.startDelay||0)>0&&(latest.time||0)<latest.startDelay));
+// All rooms show the cinematic intro, including older live Render servers
+// whose snapshots lack startDelay. The server remains authoritative when
+// a startDelay is advertised; fallback uses the local start event clock.
+const introSeconds=()=>{
+ if(!running)return 4;
+ const delay=Number(latest?.startDelay);
+ if(delay>0){
+  const elapsed=Number(latest.time)||0;
+  const age=lastSnapshotAt?Math.max(0,Math.min(.1,(performance.now()-lastSnapshotAt)/1000)):0;
+  return Math.min(4,Math.max(0,(elapsed+age)*4/delay));
+ }
+ return Math.min(4,Math.max(0,(performance.now()-(introStartedAt||performance.now()))/1000));
+};
+const inCountdown=()=>running&&introSeconds()<4;
 const playView=()=>{hideResult();$('veil').classList.add('hidden');$('touchControls').style.display=inCountdown()?'none':'flex';$('hud').style.display='flex';$('splash').style.display='none';};
 const INTRO_LINES=['3','2','1','רוצו על נפשותיכם מהמפלצת!!'];
 let introStage=-1,autoReadyWhenLoaded=false,gameCanvasRevealed=false,consecutiveFastSamples=0,pingMs=null;
 function updateIntro(){
  const overlay=$('introOverlay');
- if(!running||latest?.outcome||!inCountdown()){overlay.style.display='none';introStage=-1;return}
- const now=performance.now(),delay=Number(latest?.startDelay)||4;
- const time=latest?Math.min(delay,(latest.time||0)+Math.max(0,Math.min(.1,(now-lastSnapshotAt)/1000))):0;
- const stage=Math.max(0,Math.min(3,Math.floor(time)));
+ if(!running||latest?.outcome||!inCountdown()){overlay.style.display='none';introStage=-1;if(running&&appReady&&!latest?.outcome)$('touchControls').style.display='flex';return}
+ const stage=Math.max(0,Math.min(3,Math.floor(introSeconds())));
  overlay.style.display='flex';
  if(stage===introStage)return;
  introStage=stage;
@@ -245,7 +256,7 @@ function onMessage(m){
   if(m.status==='finished'){running=false;if(latest?.outcome)showResult(latest.outcome);else {roomView();$('readyBtn').style.display='none';$('againBtn').style.display='inline-flex';}}
   if(m.status==='running'){$('pauseChip').style.display=m.paused?'block':'none';if(!m.paused)playView();}
  }
- if(m.type==='started'){running=true;held=false;gameCanvasRevealed=false;introStage=-1;seq=0;latest=null;remote=null;smoothSelf=smoothChaser=smoothRemote=null;visualJump=null;lastSnapshotAt=0;lastPaintTime=0;if(frame?.game){frame.game.__onlineStarted=false;}activeRound=m.round||activeRound;revealGameCanvas();playView();announce('המרדף התחיל!');sendInput(false);}
+ if(m.type==='started'){running=true;held=false;introStartedAt=performance.now();gameCanvasRevealed=false;introStage=-1;seq=0;latest=null;remote=null;smoothSelf=smoothChaser=smoothRemote=null;visualJump=null;lastSnapshotAt=0;lastPaintTime=0;if(frame?.game){frame.game.__onlineStarted=false;}activeRound=m.round||activeRound;revealGameCanvas();playView();announce('המרדף התחיל!');sendInput(false);}
  if(m.type==='snapshot'){
   if(!session||m.code!==session.code)return;if(activeRound&&m.round&&m.round!==activeRound)return;lastSnapshotAt=performance.now();const players=enrichedPlayers(m.players);rememberRoster(players);const wasFinished=latest?.outcome;latest={...m,players};
   if(!frame?.game||!appReady)return;
@@ -289,7 +300,10 @@ function patchRenderer(){
   if(!smoothSelf)return origCam.call(this,g,dt);
   return origCam.call(this,{...g,player:{...g.player,x:smoothSelf.x,y:smoothSelf.y}},dt);
  };
- r.draw=function(g){
+ // This is the actual draw entry point invoked by the original game's RAF.
+ // Previously drawInterpolated existed but was never called, so all motion
+ // jumped between 20 Hz snapshots regardless of screen FPS.
+ const paintScene=function(g){
   orig.call(this,g);
   if(!remote||g.state!=='playing')return;
   const ownGear=frame.wardrobe.equipped,other=remote;
@@ -310,8 +324,13 @@ function patchRenderer(){
   }catch(e){if(!this.remoteErrorLogged){console.warn('Kozin remote render error',e);this.remoteErrorLogged=true}}
   finally{frame.wardrobe.equipped=ownGear}
  };
+ r.draw=function(g){
+  if(g?.__onlineStarted&&g.state==='playing'&&running&&latest)
+   return this.drawInterpolated(g);
+  return paintScene.call(this,g);
+ };
  r.drawInterpolated=function(g){
-  if(g.state!=='playing'){this.draw(g);return}
+  if(g.state!=='playing'){paintScene.call(this,g);return}
   const now=performance.now(),dt=lastPaintTime?Math.min(.05,Math.max(.001,(now-lastPaintTime)/1000)):1/60;
   lastPaintTime=now;
   // Predict a short local movement slice between 20Hz authoritative updates.
@@ -350,7 +369,7 @@ function patchRenderer(){
   let remoteTarget=remote?.player||null;
   if(remoteTarget){
    const vx=Number(remote.currentSpeed)||0;
-   const rx=(remote.run&&vx>0)?remoteTarget.x+Math.min(900,vx)*age:remoteTarget.x;
+   const rx=(remote.run&&vx>0)?remoteTarget.x+Math.min(900,vx)*Math.min(.095,age):remoteTarget.x;
    remoteTarget={...remoteTarget,x:rx,phase:(remoteTarget.phase||0)+Math.max(0,rx-remoteTarget.x)/30};
   }
   smoothRemote=remoteTarget?interp(smoothRemote,remoteTarget,k):null;
@@ -367,8 +386,8 @@ function patchRenderer(){
     frame.renderer.resize();
    }else if(fps>58){
     consecutiveFastSamples++;
-    if(consecutiveFastSamples>=5&&frame.renderer.maxPixelBudget<950000){
-     frame.renderer.maxPixelBudget=Math.min(950000,Math.round(frame.renderer.maxPixelBudget*1.12));
+    if(consecutiveFastSamples>=5&&frame.renderer.maxPixelBudget<(matchMedia('(pointer:coarse)').matches?680000:900000)){
+     frame.renderer.maxPixelBudget=Math.min(matchMedia('(pointer:coarse)').matches?680000:900000,Math.round(frame.renderer.maxPixelBudget*1.12));
      frame.renderer.resize();consecutiveFastSamples=0;
     }
    }else consecutiveFastSamples=0;
@@ -378,7 +397,7 @@ function patchRenderer(){
   try{
    g.player={...priorPlayer,...smoothSelf};
    g.chaser={...priorChaser,...smoothChaser};
-   this.draw(g);
+   paintScene.call(this,g);
   }finally{g.player=priorPlayer;g.chaser=priorChaser}
  };
 }
@@ -430,7 +449,8 @@ frame=bridge;appReady=true;
 // invisible in online mode and waste CPU/GPU time beside multiplayer drawing.
 if(typeof bridge.wardrobe.animatePreview==='function')bridge.wardrobe.animatePreview=()=>{};
 // Online-only pixel cap: the original 4K canvas can stall desktop browsers when running inside an iframe.
-const baseResize=bridge.renderer.resize;bridge.renderer.maxPixelBudget=950000;bridge.renderer.resize=function(...args){baseResize.apply(this,args);const pixels=this.canvas.width*this.canvas.height;if(pixels>this.maxPixelBudget){const scale=Math.sqrt(this.maxPixelBudget/pixels);this.canvas.width=Math.round(this.canvas.width*scale);this.canvas.height=Math.round(this.canvas.height*scale);this.dpr*=scale;}};bridge.renderer.resize();$('splash').style.display='none';$('options').style.display=room?'none':'block';
+const baseResize=bridge.renderer.resize;bridge.renderer.maxPixelBudget=matchMedia('(pointer:coarse)').matches?540000:900000;
+bridge.renderer.resize=function(...args){baseResize.apply(this,args);const pixels=this.canvas.width*this.canvas.height;if(pixels>this.maxPixelBudget){const scale=Math.sqrt(this.maxPixelBudget/pixels);this.canvas.width=Math.round(this.canvas.width*scale);this.canvas.height=Math.round(this.canvas.height*scale);this.dpr*=scale;}};bridge.renderer.resize();$('splash').style.display='none';$('options').style.display=room?'none':'block';
  if(room&&profile){$('hero').value=profile.hero;}// Honor the hero already sent to the server.
  syncAccountProfile();
  if(room?.status==='waiting'&&session){
