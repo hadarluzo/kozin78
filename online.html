@@ -159,7 +159,13 @@ const INTRO_LINES=['3','2','1','רוצו על נפשותיכם מהמפלצת!!'
 let introStage=-1,autoReadyWhenLoaded=false,gameCanvasRevealed=false,consecutiveFastSamples=0,pingMs=null;
 function updateIntro(){
  const overlay=$('introOverlay');
- if(!running||latest?.outcome||!inCountdown()){overlay.style.display='none';introStage=-1;if(running&&appReady&&!latest?.outcome)$('touchControls').style.display='flex';return}
+ if(!running||latest?.outcome||!inCountdown()){
+  if(overlay.style.display!=='none')overlay.style.display='none';
+  introStage=-1;
+  if(running&&appReady&&!latest?.outcome&&$('touchControls').style.display!=='flex')
+   $('touchControls').style.display='flex';
+  return;
+ }
  const stage=Math.max(0,Math.min(3,Math.floor(introSeconds())));
  overlay.style.display='flex';
  if(stage===introStage)return;
@@ -289,7 +295,7 @@ function showResult(outcome){
 function patchRenderer(){
  if(renderInstalled||!frame)return;
  const r=frame.renderer,orig=r.draw,origCam=r.updateCamera;
- let remoteAvatar=null,remoteAvatarKey='';
+ let remoteAvatar=null,remoteAvatarSource=null;
  renderInstalled=true;
  // Keep authoritative server snapshots separate from display-only interpolation.
  const interp=(last,target,k)=>{
@@ -309,18 +315,20 @@ function patchRenderer(){
   if(!remote||g.state!=='playing')return;
   const ownGear=frame.wardrobe.equipped,other=remote;
   try{
-   const otherHero=other.hero||roomRoster.get(other.id)?.hero||'luzo';
-   const cachedGear=roomRoster.get(other.id)?.gear||{};
-   const gear={...cachedGear,...(other.gear||{})};
-   const avatarKey=other.id+':'+otherHero+':'+JSON.stringify(gear);
-   if(avatarKey!==remoteAvatarKey){
-    remoteAvatarKey=avatarKey;
-    remoteAvatar={hero:otherHero,gear,wallet:{...g.wallet,selected:otherHero},input:{running:false},combat:{},power:{}};
-   }
    const displayOther=smoothRemote?{...other.player,x:smoothRemote.x,y:smoothRemote.y,phase:smoothRemote.phase}:other.player;
    // Both players have independent cameras. Avoid expensive sprite drawing
    // for a teammate who is entirely outside this player's visible scene.
    if(!displayOther||displayOther.x<this.camera-120||displayOther.x>this.camera+this.width+120)return;
+   if(remoteAvatarSource!==other){
+    remoteAvatarSource=other;
+    const otherHero=other.hero||roomRoster.get(other.id)?.hero||'luzo';
+    remoteAvatar={
+     hero:otherHero,
+     gear:{...(roomRoster.get(other.id)?.gear||{}),...(other.gear||{})},
+     label:(other.name||'שחקן')+' · '+heroName(otherHero),
+     wallet:{...g.wallet,selected:otherHero},input:{running:false},combat:{},power:{}
+    };
+   }
    frame.wardrobe.equipped=remoteAvatar.gear;
    const proxy={...g,wallet:remoteAvatar.wallet,player:displayOther,
     power:Object.assign(remoteAvatar.power,g.power,other.power||{},{
@@ -334,7 +342,7 @@ function patchRenderer(){
    ctx.save();
    try{ctx.globalAlpha=oldAlpha*.56;this.character(proxy,false);}
    finally{ctx.restore();}
-   this.text((other.name||'שחקן')+' · '+heroName(otherHero),displayOther.x-this.camera,this.ground-(displayOther.y||0)-199,16,'#8ef1ff',true);
+   this.text(remoteAvatar.label,displayOther.x-this.camera,this.ground-(displayOther.y||0)-199,16,'#8ef1ff',true);
   }catch(e){if(!this.remoteErrorLogged){console.warn('Kozin remote render error',e);this.remoteErrorLogged=true}}
   finally{frame.wardrobe.equipped=ownGear}
  };
@@ -437,7 +445,7 @@ function updateGame(m){const me=m.players.find(p=>p.id===session?.id),other=m.pl
 }
 function updateHud(){const me=getOwn();if(!me||!latest)return;$('hudName').textContent=(me.name||'שחקן')+' · '+heroName(me.hero);$('hudDistance').textContent=' · '+Math.round(Math.max(0,(me.player?.x||320)-320)/10)+' מ׳';const friend=latest.players.find(p=>p.id!==session?.id);$('hudRoom').textContent='חדר '+session.code+(friend?' · חבר: '+heroName(friend.hero):'');const delay=Number(latest.startDelay)||0;const remain=Math.max(0,(delay?delay+1.5:6)-(latest.time||0));$('startupChip').textContent='יתרון פתיחה · '+Math.ceil(remain)+' שניות';$('startupChip').style.display=latest.outcome||!running||inCountdown()||remain<=0?'none':'block';$('hudEnergy').textContent='קוזין '+Math.max(0,Math.round(latest.chaser?.energy||0))+'%';$('hudFood').textContent=' · '+(me.count||0)+' מאכלים';const cooldown=Math.max(0,me.power?.cooldown||0);$('powerClock').textContent=cooldown?Math.ceil(cooldown)+' שנ׳':'מוכן';$('powerBtn').disabled=cooldown>0;}
 function sendInput(force){if(!running||!session||!frame)return;const now=Date.now();if(force!==true&&now-lastSent<65)return;lastSent=now;const width=frame.renderer?.width||1000;send({type:'input',seq:++seq,run:held,lift:false,width});}
-setInterval(()=>sendInput(false),50);
+setInterval(()=>sendInput(false),100);
 // Measure actual socket latency separately from local rendering FPS.
 setInterval(()=>{if(ws?.readyState===WebSocket.OPEN)send({type:'ping',at:performance.now()})},5000);
 function hold(v){if(v&&inCountdown())return;if(held===v)return;held=v;sendInput(true)}
