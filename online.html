@@ -68,7 +68,7 @@ body.online-controls-visible #touchControls{display:block!important}
 <div id="veil"><div id="panel">
 <h1>המרדף של קוזין</h1><p>אונליין · שני חברים בורחים יחד מקוזין</p><p class="muted">אותה גרפיקה ומנוע משחק מקוריים. כל אחד רואה את המצלמה שלו.</p>
 <div id="options"><label for="nickname">שם המשתמש במשחק</label><input id="nickname" readonly aria-readonly="true" placeholder="שם החשבון או שם זמני" maxlength="24" autocomplete="nickname"><p class="muted" id="accountNote">טוען את פרופיל השחקן...</p><div class="twocol"><div><label for="heroPicker">הדמות שלי</label><select id="hero" hidden aria-hidden="true"></select><button type="button" id="heroPicker" class="hero-picker" aria-haspopup="dialog"><canvas id="chosenHeroPortrait" width="74" height="74"></canvas><span id="chosenHeroName">בחר דמות</span><span class="chevron">⌄</span></button></div><div><label for="difficulty">רמת קושי</label><select id="difficulty"><option value="easy">קל</option><option value="normal" selected>בינוני</option><option value="hard">קשה</option><option value="impossible">בלתי אפשרי</option></select></div></div>
-<div class="actions"><button class="btn" id="createBtn">צור חדר</button><button class="btn dark" id="joinBtn">הצטרף לחדר</button></div><input id="joinCode" maxlength="6" inputmode="numeric" pattern="[0-9]{6}" placeholder="קוד בן 6 ספרות" dir="ltr" autocomplete="off">
+<div class="actions"><button class="btn" id="createBtn">צור חדר</button><button class="btn dark" id="joinBtn">הצטרף לחדר</button><button class="btn dark" id="cancelConnectBtn" style="display:none">ביטול התחברות</button></div><input id="joinCode" maxlength="6" inputmode="numeric" pattern="[0-9]{6}" placeholder="קוד בן 6 ספרות" dir="ltr" autocomplete="off">
 <p class="muted">בגדים וכוחות נלקחים מהמשחק הרגיל. האונליין אינו מעניק או מוציא כסף מהארנק.</p></div>
 <div id="roomSection"><p>קוד החדר שלך</p><div id="roomCode" class="room"></div><button class="btn dark wide" id="shareBtn">העתק קישור להזמנת חבר</button><div id="waitingPlayers"></div><div class="actions"><button class="btn" id="readyBtn">אני מוכן</button><button class="btn dark" id="againBtn" style="display:none">משחק חוזר</button></div><button class="btn ghost wide" id="leaveBtn">יציאה מהחדר</button></div>
 <div class="status" id="status">מכין את המשחק…</div><a id="backLink" href="./index.html">חזרה למשחק הרגיל</a>
@@ -162,15 +162,17 @@ function clearConnectPending(){
  connectPending=false;connectSince=0;clearInterval(connectClock);connectClock=null;
  const create=$('createBtn'),join=$('joinBtn');
  create.disabled=false;join.disabled=false;
+ $('cancelConnectBtn').style.display='none';
  create.textContent='צור חדר';join.textContent='הצטרף לחדר';
 }
 function beginConnectFeedback(){
  connectPending=true;connectSince=Date.now();clearInterval(connectClock);
+ $('cancelConnectBtn').style.display='inline-flex';
  connectClock=setInterval(()=>{
   if(!connectPending){clearInterval(connectClock);connectClock=null;return}
   const seconds=Math.floor((Date.now()-connectSince)/1000);
   if(seconds>=8){
-   announce('ממתינים לתשובת השרת ('+seconds+' שניות). שרת חינמי עלול להתעורר לאט. אפשר לבטל או לנסות שוב.');
+   announce('ממתינים לתשובת השרת ('+seconds+' שניות). שרת חינמי עלול להתעורר לאט. אפשר לבטל את הניסיון.');
   }
  },2000);
 }
@@ -653,6 +655,12 @@ const act=t=>{if(!running||inCountdown())return;if(t==='jump'&&frame?.game){
 addEventListener('keydown',e=>{if(/INPUT|SELECT|TEXTAREA/.test(document.activeElement?.tagName||''))return;if(['ArrowRight','KeyD'].includes(e.code)){e.preventDefault();hold(true)}if(!e.repeat&&['Space','ArrowUp','KeyW'].includes(e.code)){e.preventDefault();act('jump')}if(!e.repeat&&e.code==='KeyS')act('power');if(!e.repeat&&e.code==='KeyK')act('kick');if(!e.repeat&&e.code==='KeyJ')act('punch')});addEventListener('keyup',e=>{if(['ArrowRight','KeyD'].includes(e.code))hold(false)});
 function hidden(v){if(running||room?.status==='running'){hold(false);send({type:'away',away:v});$('pauseChip').style.display=v?'block':'none';}}
 document.addEventListener('visibilitychange',()=>hidden(document.hidden));addEventListener('pagehide',()=>hidden(true));addEventListener('blur',()=>hold(false));
+$('cancelConnectBtn').onclick=()=>{
+ if(!connectPending)return;
+ clearTimeout(reconnectTimer);manualLeave=true;closeSocket();
+ clearConnectPending();reconnectStart=0;profile=null;
+ announce('הניסיון בוטל. אפשר לנסות שוב בלי לרענן את הדף.');
+};
 $('createBtn').onclick=()=>beginRoom('create');$('joinBtn').onclick=()=>beginRoom('join');$('readyBtn').onclick=()=>{
  if(!appReady){autoReadyWhenLoaded=!autoReadyWhenLoaded;announce(autoReadyWhenLoaded?'החדר נוצר! ממתין לטעינת הגרפיקה לפני תחילת המשחק.':'המתנה למוכנות בוטלה.');$('readyBtn').textContent=autoReadyWhenLoaded?'מכין את המשחק…':'אני מוכן';return}
  autoReadyWhenLoaded=false;send({type:'ready',ready:!ready});
