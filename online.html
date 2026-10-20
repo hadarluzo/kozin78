@@ -291,13 +291,13 @@ function startSocket(onOpen){clearTimeout(reconnectTimer);closeSocket();manualLe
  };
 }
 function beginRoom(kind){
- if(connectPending)return;
  // Room creation must never depend on downloading the heavy original game, its
  // image atlas or slow cloud wallet. The server accepts a basic Luzon profile;
  // ownership, account name and cosmetics are refreshed before players ready up.
  if(appReady&&frame)syncAccountProfile();
  const code=$('joinCode').value.trim();
  if(kind==='join'&&!/^\d{6}$/.test(code)){announce('צריך להזין קוד חדר בן 6 ספרות');return}
+ if(connectPending)return;
  const wallet=frame?.game?.wallet;
  let chosenName=String($('nickname').value||'').trim();
  if(!chosenName||['שחקן חדש','שחקן','אורח'].includes(chosenName)){
