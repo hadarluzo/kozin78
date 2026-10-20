@@ -48,7 +48,8 @@ const scenario={
  startSocket:onOpen=>onOpen()
 };
 const buildBegin=new Function('ctx',`
- let appReady=ctx.appReady,frame=ctx.frame,profile=null,reconnectStart=0;
+ let appReady=ctx.appReady,frame=ctx.frame,profile=null,reconnectStart=0,connectPending=false;
+ const beginConnectFeedback=()=>{connectPending=true};
  const $=ctx.find,announce=ctx.announce,send=ctx.send;
  const clearSession=ctx.clearSession,syncAccountProfile=ctx.syncAccountProfile;
  const sessionStorage=ctx.sessionStorage,startSocket=ctx.startSocket,PROTOCOL='kozin-full-3',setTimeout=()=>{};
@@ -70,7 +71,9 @@ assert.equal(outgoing.length,sent,'invalid invite cannot contact server');
 assert(statusText.at(-1).includes('6 ספרות'));
 assert(html.includes('await Promise.race([Promise.resolve(bridge.game.wallet.ready)'),'wallet loading is bounded');
 assert(html.includes('if(autoReadyWhenLoaded&&room?.status==='),'autostart waits for game renderer');
-assert(html.includes('else if(!session&&profile&&!room'),'initial connection retries when Render wakes');
+assert(html.includes('else if(!session&&connectPending&&profile&&!room'),'initial connection retries only while there is a pending room request');
+assert(html.includes('ensureGameLoaded();'),'original large game download is intentionally deferred');
+assert(html.includes('cancelConnectBtn'),'user can cancel a stalled room request');
 console.log('PASS create-room fallback with unloaded game, guest naming, websocket send, join validation and delayed readiness');
 assert(html.includes("const INTRO_LINES=['3','2','1','רוצו על נפשותיכם מהמפלצת!!']"),'race warning has the requested countdown order');
 assert(html.includes('count count-red')&&html.includes('count count-yellow')&&html.includes('count count-green'),'countdown stages are visually color-coded');
