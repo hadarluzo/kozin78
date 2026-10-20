@@ -22,8 +22,13 @@
 .hero-modal[hidden]{display:none}.hero-modal{position:fixed;inset:0;z-index:50;display:flex;justify-content:center;align-items:center;background:#05131dee;backdrop-filter:blur(9px);padding:18px}.hero-modal-panel{width:min(700px,96vw);max-height:92dvh;overflow:auto;border-radius:25px;border:2px solid #e2bb79;background:linear-gradient(145deg,#172d3e,#0b1b2a);box-shadow:0 25px 80px #000e;padding:20px}.hero-top{display:flex;align-items:center;justify-content:space-between}.hero-top h2{color:#ffe0a1;margin:0;font-size:25px}.hero-close{background:#294455;color:#fff3d7;border-radius:12px;width:46px;height:46px;font-size:24px}.hero-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(118px,1fr));gap:12px;margin-top:20px}.hero-card{background:#1d3949;border:2px solid #49677a;border-radius:16px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;padding:12px 8px;color:#fff5dd;font-weight:800}.hero-card[aria-pressed="true"]{border-color:#f9cb7e;background:#334556;box-shadow:0 0 0 2px #f9cb7e55}.hero-card canvas{width:95px;height:105px;background:#09202e;border-radius:10px;object-fit:contain}.hero-card small{color:#a9d3df}.hero-card:focus-visible{outline:3px solid #ffe0a1}
 .intro-overlay{position:absolute;inset:0;z-index:14;display:none;align-items:center;justify-content:center;pointer-events:none;background:radial-gradient(ellipse at center,#120806b8,#000000d9);padding:24px;text-align:center;direction:rtl}
 #introText{font-size:clamp(27px,6.5vw,66px);font-weight:1000;line-height:1.28;color:#ffe1a8;text-shadow:0 4px 24px #000,0 0 45px #aa321f}
-.intro-overlay.count .intro-content{font-size:clamp(90px,19vw,190px);color:#fff0d4}
-.intro-overlay.go .intro-content{color:#fff3d3;text-shadow:0 0 26px #c12710,0 5px 30px #000}
+.intro-overlay.count .intro-content{font-size:clamp(90px,19vw,190px);font-variant-numeric:tabular-nums;letter-spacing:-.06em}
+.intro-overlay.count-red #introText{color:#ff3737;text-shadow:0 0 20px #c00000,0 7px 30px #000}
+.intro-overlay.count-yellow #introText{color:#ffdd21;text-shadow:0 0 20px #bd7900,0 7px 30px #000}
+.intro-overlay.count-green #introText{color:#55ff5f;text-shadow:0 0 25px #139b2b,0 7px 30px #000}
+.intro-overlay.go #introText{position:relative;isolation:isolate;max-width:min(95vw,850px);font-family:Impact,'Arial Black',Arial,sans-serif;font-size:clamp(34px,7.8vw,76px);font-weight:1000;line-height:1.26;letter-spacing:-.035em;color:#d10813;-webkit-text-stroke:clamp(.5px,.14vw,1.5px) #670008;transform:rotate(-1.2deg);text-shadow:0 2px 0 #5b0206,2px 4px 0 #650004,-2px 6px 0 #73000b,0 10px 5px #290002,0 17px 26px #000,0 0 23px #bf070a}
+.intro-overlay.go #introText::after{content:'';position:absolute;pointer-events:none;z-index:-1;left:7%;right:6%;top:65%;height:90px;background:radial-gradient(ellipse 6px 10px at 11% 37%,#8c0107 96%,transparent 100%),radial-gradient(ellipse 5px 10px at 37% 57%,#a60207 96%,transparent 100%),radial-gradient(ellipse 7px 12px at 79% 46%,#860003 96%,transparent 100%),linear-gradient(#9b0006,#730004) 11% 3%/9px 37px no-repeat,linear-gradient(#bc020b,#730004) 37% 3%/7px 54px no-repeat,linear-gradient(#b60008,#730004) 79% 3%/11px 44px no-repeat;opacity:.94}
+.intro-overlay.go{background:radial-gradient(ellipse at center,#260707da,#050103f2)}
 .intro-content{animation:kozin-intro-pop .38s ease-out both}
 @keyframes kozin-intro-pop{from{opacity:.1;transform:scale(.65)}to{opacity:1;transform:scale(1)}}
 #splash{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;z-index:3;color:#fce6c5;background:#0c1926;pointer-events:none}#startupChip{display:none;position:absolute;z-index:9;top:54px;left:50%;transform:translateX(-50%);padding:7px 14px;border-radius:12px;background:#0b2636e8;color:#ffe1a0;text-align:center;font-size:14px;font-weight:bold;pointer-events:none;white-space:nowrap}#pauseChip{display:none;position:absolute;z-index:9;top:51px;left:50%;transform:translateX(-50%);padding:10px 20px;border-radius:13px;background:#102435ec;color:#ffe09d;text-align:center;font-weight:bold;pointer-events:none}a{color:#ffe1a5}#options{display:block}#backLink{font-size:12px;display:inline-block;margin:12px}
@@ -36,7 +41,7 @@
 <div id="heroModal" class="hero-modal" role="dialog" aria-modal="true" aria-label="בחירת דמות" hidden><section class="hero-modal-panel"><div class="hero-top"><h2>בחירת דמות</h2><button id="closeHeroModal" class="hero-close" aria-label="סגור בחירת דמות">✕</button></div><p class="muted">רק דמויות שנפתחו אצלך במשחק</p><div id="heroGrid" class="hero-grid" role="group" aria-label="הדמויות שלי"></div></section></div>
 <div id="hud"><span><b id="hudName">שחקן</b><span class="sub" id="hudDistance"></span></span><span class="roomMark" id="hudRoom"></span><span><b id="hudEnergy">קוזין 100%</b><span class="sub" id="hudFood"></span></span></div>
 <div id="resultView" role="dialog" aria-label="תוצאות המשחק"><section id="resultPanel"><div id="resultTitle">הפסדתם</div><p id="resultSummary"></p><p id="resultDistance"></p><div id="resultActions"><button class="btn" id="resultAgain">משחק חוזר</button><button class="btn dark" id="resultLeave">חזרה ללובי</button></div></section></div>
-<div id="introOverlay" class="intro-overlay" aria-live="assertive" aria-atomic="true"><div id="introText" class="intro-content">קוזין מתחיל להיות רעב…</div></div>
+<div id="introOverlay" class="intro-overlay" aria-live="assertive" aria-atomic="true"><div id="introText" class="intro-content">3</div></div>
 <div id="perfTag" style="display:none;position:absolute;z-index:12;top:52px;right:10px;background:#07212bce;color:#b9f0d9;padding:6px 10px;border-radius:9px;font:700 12px Arial;direction:ltr;pointer-events:none">FPS -- · NET --</div><div id="pauseChip">ממתינים לחיבור מחדש…</div><div id="startupChip">יתרון פתיחה · 6 שניות</div>
 <div id="touchControls"><button class="run" id="runBtn">רוץ<em>החזק</em></button><div id="attack"><button id="powerBtn">כוח<em id="powerClock">מיוחד</em></button><button id="kickBtn">בעיטה</button><button id="punchBtn">אגרוף</button><button id="jumpBtn">קפיצה<em>פעמיים = סלטה</em></button></div></div>
 <div id="veil"><div id="panel">
@@ -137,17 +142,18 @@ const roomView=()=>{hideResult();$('options').style.display='none';$('roomSectio
 const menuView=()=>{autoReadyWhenLoaded=false;profile=null;gameCanvasRevealed=false;hideResult();$('options').style.display='block';$('roomSection').style.display='none';$('veil').classList.remove('hidden');$('touchControls').style.display='none';$('hud').style.display='none';room=null;running=false;ready=false;activeRound=null;roomRoster.clear();$('startupChip').style.display='none';};
 const inCountdown=()=>running&&(!latest||((latest.startDelay||0)>0&&(latest.time||0)<latest.startDelay));
 const playView=()=>{hideResult();$('veil').classList.add('hidden');$('touchControls').style.display=inCountdown()?'none':'flex';$('hud').style.display='flex';$('splash').style.display='none';};
-const INTRO_LINES=['קוזין מתחיל להיות רעב…','3','2','1','תברחו על נפשותיכם מהמפלצת!!'];
+const INTRO_LINES=['3','2','1','רוצו על נפשותיכם מהמפלצת!!'];
 let introStage=-1,autoReadyWhenLoaded=false,gameCanvasRevealed=false,consecutiveFastSamples=0,pingMs=null;
 function updateIntro(){
  const overlay=$('introOverlay');
  if(!running||latest?.outcome||!inCountdown()){overlay.style.display='none';introStage=-1;return}
- const now=performance.now(),delay=Number(latest?.startDelay)||5;
- const time=latest?Math.min(delay,(latest.time||0)+Math.max(0,Math.min(.2,(now-lastSnapshotAt)/1000))):0;
- const stage=Math.max(0,Math.min(4,Math.floor(time)));
+ const now=performance.now(),delay=Number(latest?.startDelay)||4;
+ const time=latest?Math.min(delay,(latest.time||0)+Math.max(0,Math.min(.1,(now-lastSnapshotAt)/1000))):0;
+ const stage=Math.max(0,Math.min(3,Math.floor(time)));
  overlay.style.display='flex';
  if(stage===introStage)return;
- introStage=stage;overlay.className='intro-overlay '+(stage>=4?'go':stage>=1?'count':'hunger');
+ introStage=stage;
+ overlay.className='intro-overlay '+(stage===0?'count count-red':stage===1?'count count-yellow':stage===2?'count count-green':'go');
  const line=$('introText');line.textContent=INTRO_LINES[stage];line.style.animation='none';void line.offsetWidth;line.style.animation='';
 }
 setInterval(updateIntro,70);
