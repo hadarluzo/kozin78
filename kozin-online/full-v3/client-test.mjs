@@ -28,4 +28,49 @@ assert.equal(elems.nickname.readOnly,false,'guest can enter an explicit temporar
 assert.notEqual(elems.nickname.value,'אורח','do not invent a guest username');
 assert(html.includes("ctx.globalAlpha=oldAlpha*.56"),'only the remote avatar is translucent');
 assert(html.includes("outcome.perPlayer?.[session.id]"),'win/loss checks current player id');
+
+const beginStart=html.indexOf('function beginRoom(kind){');
+const beginEnd=html.indexOf('\nfunction onMessage(m){',beginStart);
+assert(beginStart>=0&&beginEnd>beginStart,'room creation source exists');
+const beginScript=html.slice(beginStart,beginEnd);
+const outgoing=[],statusText=[];
+const createElems={
+ nickname:{value:''},joinCode:{value:''},
+ hero:{value:'luzo'},difficulty:{value:'normal'},
+ createBtn:{disabled:false},joinBtn:{disabled:false}
+};
+const storage=new Map();
+const scenario={
+ appReady:false,frame:null,find:id=>createElems[id],
+ announce:m=>statusText.push(m),send:m=>outgoing.push(m),
+ clearSession:()=>{},syncAccountProfile:()=>{throw Error('unexpected blocking profile sync')},
+ sessionStorage:{getItem:k=>storage.get(k)||null,setItem:(k,v)=>storage.set(k,v)},
+ startSocket:onOpen=>onOpen()
+};
+const buildBegin=new Function('ctx',`
+ let appReady=ctx.appReady,frame=ctx.frame,profile=null,reconnectStart=0;
+ const $=ctx.find,announce=ctx.announce,send=ctx.send;
+ const clearSession=ctx.clearSession,syncAccountProfile=ctx.syncAccountProfile;
+ const sessionStorage=ctx.sessionStorage,setTimeout=()=>{};
+ ${beginScript}
+ return kind=>{beginRoom(kind);return profile;};
+`);
+const runBegin=buildBegin(scenario);
+const guest=runBegin('create');
+assert.equal(guest.hero,'luzo','fallback can create without original 16MB iframe');
+assert.equal(guest.gear&&Object.keys(guest.gear).length,0);
+assert(guest.name.startsWith('שחקן '),'blank guest name receives temporary player label');
+assert.equal(outgoing[0].type,'create');
+assert.equal(outgoing[0].protocol,'kozin-full-3');
+assert.equal(outgoing[0].name,guest.name);
+assert(statusText.some(x=>x.includes('יוצר חדר')),'shows visible room creation feedback');
+const sent=outgoing.length;
+runBegin('join');
+assert.equal(outgoing.length,sent,'invalid invite cannot contact server');
+assert(statusText.at(-1).includes('6 ספרות'));
+assert(html.includes('await Promise.race([Promise.resolve(bridge.game.wallet.ready)'),'wallet loading is bounded');
+assert(html.includes('if(autoReadyWhenLoaded&&room?.status==='),'autostart waits for game renderer');
+assert(html.includes('else if(!session&&profile&&!room'),'initial connection retries when Render wakes');
+console.log('PASS create-room fallback with unloaded game, guest naming, websocket send, join validation and delayed readiness');
 console.log('PASS named account, owned-hero gallery, guest fallback, remote transparency and per-player results');
+
