@@ -134,7 +134,7 @@ const announce=s=>$('status').textContent=s;
 const send=m=>{if(ws?.readyState===WebSocket.OPEN)try{ws.send(JSON.stringify(m));return true}catch{}return false};
 const hideResult=()=>{$('resultView').style.display='none'};
 const roomView=()=>{hideResult();$('options').style.display='none';$('roomSection').style.display='block';$('veil').classList.remove('hidden');$('touchControls').style.display='none';$('hud').style.display='none';};
-const menuView=()=>{hideResult();$('options').style.display='block';$('roomSection').style.display='none';$('veil').classList.remove('hidden');$('touchControls').style.display='none';$('hud').style.display='none';room=null;running=false;ready=false;activeRound=null;roomRoster.clear();$('startupChip').style.display='none';};
+const menuView=()=>{autoReadyWhenLoaded=false;hideResult();$('options').style.display='block';$('roomSection').style.display='none';$('veil').classList.remove('hidden');$('touchControls').style.display='none';$('hud').style.display='none';room=null;running=false;ready=false;activeRound=null;roomRoster.clear();$('startupChip').style.display='none';};
 const inCountdown=()=>running&&(!latest||((latest.startDelay||0)>0&&(latest.time||0)<latest.startDelay));
 const playView=()=>{hideResult();$('veil').classList.add('hidden');$('touchControls').style.display=inCountdown()?'none':'flex';$('hud').style.display='flex';$('splash').style.display='none';};
 const INTRO_LINES=['קוזין מתחיל להיות רעב…','3','2','1','תברחו על נפשותיכם מהמפלצת!!'];
@@ -191,10 +191,10 @@ function beginRoom(kind){
 }
 function onMessage(m){
  if(m.type==='hello'){if(m.protocol!==PROTOCOL){announce('גרסת שרת לא תואמת');return}}
- if(m.type==='joined'){session={code:m.code,id:m.id,token:m.token};saveSession();room={code:m.code};reconnectStart=0;ready=false;roomView();$('roomCode').textContent=m.code;announce('מחובר לחדר! מחכה לחבר.');$('pauseChip').style.display='none';}
+ if(m.type==='joined'){session={code:m.code,id:m.id,token:m.token};saveSession();room={code:m.code};reconnectStart=0;ready=false;roomView();$('roomCode').textContent=m.code;announce(appReady?'מחובר לחדר! מחכה לחבר.':'החדר נוצר בהצלחה! טוען את המשחק כדי שתוכל להתחיל.');$('pauseChip').style.display='none';}
  if(m.type==='room'){
   room=m;rememberRoster(m.players);activeRound=m.round||activeRound;$('roomCode').textContent=m.code;$('waitingPlayers').textContent=(m.players||[]).map(p=>`${p.name} (${heroName(p.hero)}) ${p.connected?'●':'◌'} ${p.ready?'✓ מוכן':'ממתין'}`).join('  |  ');ready=!!m.players?.find(p=>p.id===session?.id)?.ready;$('readyBtn').textContent=ready?'מוכן ✓':'אני מוכן';
-  if(m.status==='waiting'){running=false;latest=null;remote=null;smoothSelf=smoothChaser=smoothRemote=null;roomView();$('readyBtn').style.display='inline-flex';$('againBtn').style.display='none';announce('שני שחקנים צריכים ללחוץ ״אני מוכן״');}
+  if(m.status==='waiting'){running=false;latest=null;remote=null;smoothSelf=smoothChaser=smoothRemote=null;roomView();$('readyBtn').style.display='inline-flex';$('againBtn').style.display='none';if(autoReadyWhenLoaded&&!appReady)$('readyBtn').textContent='ממתין לטעינת המשחק…';announce(appReady?'שני שחקנים צריכים ללחוץ ״אני מוכן״':'החדר מחובר. טוען גרפיקה ודמויות לפני תחילת המרדף…');}
   if(m.status==='finished'){running=false;if(latest?.outcome)showResult(latest.outcome);else {roomView();$('readyBtn').style.display='none';$('againBtn').style.display='inline-flex';}}
   if(m.status==='running'){$('pauseChip').style.display=m.paused?'block':'none';if(!m.paused)playView();}
  }
@@ -352,12 +352,12 @@ $('createBtn').onclick=()=>beginRoom('create');$('joinBtn').onclick=()=>beginRoo
 $('shareBtn').onclick=async()=>{const l=new URL(location.href);l.searchParams.set('room',session?.code||'');try{await navigator.clipboard.writeText(l.href);announce('קישור ההזמנה הועתק')}catch{announce('שתף את הקישור: '+l.href)}};
 $('resultAgain').onclick=()=>{$('againBtn').click();hideResult();roomView();announce('ממתינים למשחק חוזר…');};
 $('resultLeave').onclick=()=>$('leaveBtn').click();
-$('leaveBtn').onclick=()=>{manualLeave=true;send({type:'leave'});closeSocket();clearSession();menuView();announce('יצאת מהחדר')};
+$('leaveBtn').onclick=()=>{autoReadyWhenLoaded=false;manualLeave=true;send({type:'leave'});closeSocket();clearSession();menuView();announce('יצאת מהחדר')};
 async function setupFrame(){let attempt=0;while(attempt++<110){try{const f=$('original').contentWindow;const bridge=f.eval('({game,renderer,assets,wardrobe,controls})');if(bridge?.game&&bridge?.renderer&&bridge.assets.loaded&&bridge.wardrobe){
-await bridge.game.wallet.ready;
-if(!bridge.game.wallet.user&&typeof bridge.game.wallet.cloudLoad==='function'){
- try{await bridge.game.wallet.cloudLoad()}catch(e){console.warn('Optional account refresh unsuccessful',e)}
-}
+await Promise.race([Promise.resolve(bridge.game.wallet.ready).catch(()=>{}),new Promise(resolve=>setTimeout(resolve,3500))]);
+// Do not refetch the cloud profile synchronously here: it can keep the entire
+// multiplayer UI waiting when auth or the remote save provider is slow.
+// wallet.ready already supplies the initial local/account state.
 // Wait for the real account and ownership to finish loading.
 // Read cosmetics from the original game, but never write an online round to its save.
 bridge.game.wallet.save=()=>{};bridge.game.wallet.flush=async()=>{};bridge.game.wallet.record=()=>{};
@@ -366,7 +366,19 @@ frame=bridge;appReady=true;
 // invisible in online mode and waste CPU/GPU time beside multiplayer drawing.
 if(typeof bridge.wardrobe.animatePreview==='function')bridge.wardrobe.animatePreview=()=>{};
 // Online-only pixel cap: the original 4K canvas can stall desktop browsers when running inside an iframe.
-const baseResize=bridge.renderer.resize;bridge.renderer.maxPixelBudget=950000;bridge.renderer.resize=function(...args){baseResize.apply(this,args);const pixels=this.canvas.width*this.canvas.height;if(pixels>this.maxPixelBudget){const scale=Math.sqrt(this.maxPixelBudget/pixels);this.canvas.width=Math.round(this.canvas.width*scale);this.canvas.height=Math.round(this.canvas.height*scale);this.dpr*=scale;}};bridge.renderer.resize();$('splash').style.display='none';$('options').style.display='block';syncAccountProfile();$('difficulty').value=bridge.game.difficulty||'normal';const css=f.document.createElement('style');css.textContent='#overlay,#hud,#subhud,#controls,#notice,#bossStatus{display:none!important}html,body{touch-action:none!important}';f.document.head.appendChild(css);announce('המנוע המקורי נטען. אפשר לפתוח חדר.');if(session?.token&&/^\d{6}$/.test(session.code||'')){startSocket(()=>send({type:'resume',protocol:PROTOCOL,...session}));}return;}}catch(e){if(attempt===110)announce('לא ניתן לטעון את המשחק המקורי: '+e.message)}await new Promise(r=>setTimeout(r,350))}announce('טעינת המשחק נכשלה. בדוק ש־index.html קיים באותו אתר.');}
+const baseResize=bridge.renderer.resize;bridge.renderer.maxPixelBudget=950000;bridge.renderer.resize=function(...args){baseResize.apply(this,args);const pixels=this.canvas.width*this.canvas.height;if(pixels>this.maxPixelBudget){const scale=Math.sqrt(this.maxPixelBudget/pixels);this.canvas.width=Math.round(this.canvas.width*scale);this.canvas.height=Math.round(this.canvas.height*scale);this.dpr*=scale;}};bridge.renderer.resize();$('splash').style.display='none';$('options').style.display=room?'none':'block';
+ if(room&&profile){$('hero').value=profile.hero;}// Honor the hero already sent to the server.
+ syncAccountProfile();
+ if(room?.status==='waiting'&&session){
+  profile={...profile,hero:$('hero').value||profile?.hero||'luzo',name:String($('nickname').value||profile?.name||'שחקן').slice(0,24),gear:{...bridge.wardrobe.equipped}};
+  send({type:'profile',...profile}); // Correct the room roster before starting.
+ }
+ if(!room)$('difficulty').value=bridge.game.difficulty||'normal';const css=f.document.createElement('style');css.textContent='#overlay,#hud,#subhud,#controls,#notice,#bossStatus{display:none!important}html,body{touch-action:none!important}';f.document.head.appendChild(css);if(autoReadyWhenLoaded&&room?.status==='waiting'&&session){
+  autoReadyWhenLoaded=false;send({type:'ready',ready:true});announce('המשחק נטען. אתה מוכן! מחכה לחבר.');
+ }else if(room){announce('המשחק נטען. אפשר ללחוץ ״אני מוכן״.');}
+ else announce('המנוע המקורי נטען. אפשר לפתוח חדר.');
+ if(session?.token&&!ws&&/^\d{6}$/.test(session.code||'')){startSocket(()=>send({type:'resume',protocol:PROTOCOL,...session}));}
+ return;}}catch(e){if(attempt===110)announce('טעינת הגרפיקה נכשלה: '+e.message)}await new Promise(r=>setTimeout(r,350))}announce(room?'החדר קיים, אבל הגרפיקה לא נטענה. נסה לרענן את העמוד.':'לא ניתן לטעון את הגרפיקה. אפשר ליצור חדר, אבל כדי לשחק יש לרענן את העמוד.');}
 setupFrame();
 })();
 </script>
