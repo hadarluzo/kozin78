@@ -602,7 +602,7 @@ const act=t=>{if(!running||inCountdown())return;if(t==='jump'&&frame?.game){
   if(smoothSelf){smoothSelf.y=y+2;smoothSelf.vy=visualJump.vy;smoothSelf.jumps=jumps+1}
  }
 }send({type:'action',action:t})};
-[['jumpBtn','jump'],['punchBtn','punch'],['kickBtn','kick'],['powerBtn','power']].forEach(([id,a)=>{
+[['jumpBtn','jump'],['punchBtn','punch'],['kickBtn','kick'],['powerBtn','power']].forEach(([id,a])=>{
  const button=$(id);
  if(a==='jump'){
   // Original Kozin uses touchstart to make iPhone jumps immediate and prevent
