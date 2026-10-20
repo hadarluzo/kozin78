@@ -4,31 +4,17 @@ on:
     paths:
       - "kozin-online/**"
       - "online.html"
+      - "index.html"
       - ".github/workflows/kozin-full-online-check.yml"
   workflow_dispatch:
 permissions:
-  contents: write
+  contents: read
 jobs:
   multiplayer:
     runs-on: ubuntu-latest
     timeout-minutes: 6
     steps:
       - uses: actions/checkout@v4
-      - name: Repair shop rendering in original HTML
-        shell: bash
-        run: |
-          set -euo pipefail
-          if git apply --reverse --check --unidiff-zero kozin-online/repair-shops.patch 2>/dev/null; then
-            echo "Original HTML already includes this update"
-          else
-            git apply --check --unidiff-zero kozin-online/repair-shops.patch
-            git apply --unidiff-zero kozin-online/repair-shops.patch
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add index.html
-            git commit -m "Fix undefined clothing slot preventing stores from opening"
-            git push origin HEAD:main
-          fi
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
