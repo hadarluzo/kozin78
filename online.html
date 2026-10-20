@@ -696,6 +696,8 @@ bridge.renderer.resize=function(...args){baseResize.apply(this,args);const pixel
  $('splash').style.display='none';$('options').style.display=room?'none':'block';
  if(room&&profile){$('hero').value=profile.hero;}// Honor the hero already sent to the server.
  syncAccountProfile();
+ // Refresh the portrait gallery if it was opened while the heavy game loaded.
+ if(!$('heroModal').hidden)showHeroPicker();
  // Pre-render unlocked equipped sprites before anyone is ready to race.
  warmupHero($('hero').value,{...bridge.wardrobe.equipped});
  if(room?.status==='waiting')for(const p of room.players||[])warmupHero(p.hero,p.gear||{});
