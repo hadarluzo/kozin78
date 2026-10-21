@@ -81,8 +81,9 @@ jobs:
           set -euo pipefail
           for attempt in $(seq 1 45); do
             health="$(curl -sSfL --max-time 8 https://kozin-online-server.onrender.com/full-v3/health || true)"
-            if [[ "$health" == *'"tickHz":60'* && "$health" == *'"snapshotHz":20'* ]]; then
+            if [[ "$health" == *'"tickHz":60'* && "$health" == *'"snapshotHz":20'* && "$health" == *'"features":"bracha-fahima-mitzi-v1"'* ]]; then
               echo "PASS live Render version: $health"
+              node kozin-online/full-v3/new-heroes-live-test.mjs wss://kozin-online-server.onrender.com/full-v3
               exit 0
             fi
             echo "Waiting for production server update: attempt $attempt"
