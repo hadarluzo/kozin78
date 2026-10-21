@@ -1,0 +1,29 @@
+name: Build private unlimited-food test preview
+on:
+  push:
+    branches: [codex/private-unlimited-test]
+    paths:
+      - private-test/build.mjs
+      - private-test/BUILD_REQUESTED
+      - .github/workflows/private-unlimited-test.yml
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Build isolated test page
+        run: node private-test/build.mjs
+      - name: Commit preview page
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add private-test/index.html
+          git commit -m 'Build private unlimited-food game preview'
+          git push origin HEAD:codex/private-unlimited-test
