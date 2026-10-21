@@ -26,7 +26,7 @@ sync();
 assert.deepEqual(options.map(o=>o.value),['luzo']);
 assert.equal(elems.nickname.readOnly,false,'guest can enter an explicit temporary display name');
 assert.notEqual(elems.nickname.value,'אורח','do not invent a guest username');
-assert(html.includes('canvasCtx.globalAlpha=.58'),'remote avatar opacity is explicitly 58 percent');
+assert(html.includes('canvasCtx.globalAlpha=.22'),'remote avatar opacity is explicitly 22 percent');
 assert(!html.includes('canvasCtx.strokeRect(screenX-34'),'debug bounding rectangle must be removed');
 assert(html.includes("outcome.perPlayer?.[session.id]"),'win/loss checks current player id');
 
@@ -128,7 +128,7 @@ console.log('PASS synchronized colored countdown, blood-effect warning and local
  assert.equal(avatar.hero,'tzippy','remote hero is not replaced with the local hero');
  assert(labels.some(e=>e.name.includes('חבר')),'teammate label appears on screen');
  assert.equal(silhouettes,0,'no cyan placeholder should render beneath a valid remote sprite');
- assert.equal(remoteAlpha,.58,'remote sprite uses 58% opacity');
+ assert.equal(remoteAlpha,.22,'remote sprite uses 22% opacity');
  assert(!html.includes("canvasCtx.strokeStyle='#64ecff'"),'remove debug blue rectangle');
  assert.equal(context.remote.player.x,320,'shared-server x is not mutated by visual offset');
  const phaseBefore=avatar.phase;

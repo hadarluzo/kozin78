@@ -76,7 +76,10 @@ export class FullWorld {
     // Fade in the chase over three seconds instead of jumping to full speed
     // at the exact end of the protected opening. This leaves actual time to react.
     const ramp=Math.min(1,Math.max(0,(this.time-graceEnd)/3));
-    k.x+=Math.max(0,speed)*dt*scale*ramp;
+    k.x+=Math.max(0,speed)*dt*scale*(trailingMoving?1:ramp);
+    // A running team must not leave the common pursuer off-screen during
+    // the startup ramp. Freeze remains an explicit exception above.
+    if(trailingMoving)k.x=Math.max(k.x,trailing.player.x-CONFIG.maxGap);
    }
    const trail=trailing.trail;while(trail.length>2&&trail[1].x<k.x)trail.shift();
    if(trail.length>1&&k.x>=trail[0].x){const [a,b]=trail;k.y=a.y+(b.y-a.y)*Math.max(0,Math.min(1,(k.x-a.x)/(b.x-a.x||1)));}else k.y=0;

@@ -51,8 +51,8 @@ try {
  console.log('KOZIN_REAL_GAME_RENDER',JSON.stringify(result));
  assert(!result.error,result.error||'browser game failed');
  assert(result.ok,'Both sprite and name of teammate must visibly render');
- assert(result.remoteAlpha.length>=9/2&&result.remoteAlpha.every(x=>Math.abs(x-.58)<.01),
-  'the actual remote sprite must be drawn at exactly 58 percent opacity');
+ assert(result.remoteAlpha.length>=9/2&&result.remoteAlpha.every(x=>Math.abs(x-.22)<.01),
+  'the actual remote sprite must be drawn at exactly 22 percent opacity');
  assert(result.drawImageCalls>9,'Original sprite atlas and city art must be used');
  assert.equal(result.localWorldX,result.remoteWorldX,'Same server starting position preserved');
 }finally{server.close()}

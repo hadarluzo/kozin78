@@ -42,6 +42,11 @@ jobs:
         run: node kozin-online/full-v3/browser-game-render-test.mjs
       - name: Verify new sprites, all clothing, power rendering and offline cat rescue
         run: node kozin-online/full-v3/browser-new-heroes-test.mjs
+      - name: Verify real online page with two mobile browsers
+        shell: bash
+        run: |
+          npm install --prefix /tmp/kozin-e2e --no-audit --no-fund playwright-core@1.64.1
+          KOZIN_PLAYWRIGHT_MODULE=/tmp/kozin-e2e/node_modules/playwright-core/index.mjs node kozin-online/full-v3/browser-online-round-test.mjs
       - name: Run original-world multiplayer tests
         run: node kozin-online/full-v3/test.mjs
       - name: Verify new hero timing and personal rewind

@@ -479,6 +479,7 @@ function patchRenderer(){
  const originalUpdateCamera=r.updateCamera.bind(r);
  const defaultGear=frame.wardrobe.equipped;
  let previousRemoteId=null,previousRemotePacket=null,remoteAppearance=null,remoteLabel='',remoteRewindSerial=0;
+ let displayedChaser=null,chaserPacketX=null,chaserPacketAt=0,chaserVelocity=0;
 
  function paintTeammate(game,friend){
   const canvasCtx=r.ctx,camera=r.camera;
@@ -544,7 +545,7 @@ function patchRenderer(){
     input:remoteAppearance.input,grace:0};
    if(hasCharacterArt){
     canvasCtx.save();
-    try{canvasCtx.globalAlpha=.58;r.character(actor,false)}
+    try{canvasCtx.globalAlpha=.22;r.character(actor,false)}
     finally{canvasCtx.restore()}
     fallback=false;
    }
@@ -596,6 +597,22 @@ function patchRenderer(){
   if(visualJump && now-visualJump.at>=800)visualJump=null;
   const player=game.player,chaser=game.chaser;
   const ox=player.x,oy=player.y,op=player.phase;
+  const savedChaser={x:chaser.x,y:chaser.y,phase:chaser.phase};
+  if(lastSnapshotAt!==chaserPacketAt){
+   const elapsed=(lastSnapshotAt-chaserPacketAt)/1000;
+   chaserVelocity=chaserPacketX!=null&&elapsed>0&&elapsed<.4?Math.max(0,Math.min(850,(chaser.x-chaserPacketX)/elapsed)):0;
+   chaserPacketX=chaser.x;chaserPacketAt=lastSnapshotAt;
+  }
+  if(game.power.freezeRemaining>0)chaserVelocity=0;
+  const chaseTarget=chaser.x+chaserVelocity*age;
+  if(!displayedChaser||Math.abs(displayedChaser.x-chaseTarget)>220)displayedChaser={x:chaseTarget,y:chaser.y||0,phase:chaser.phase||0};
+  else{
+   displayedChaser.x+=chaserVelocity*dt;
+   displayedChaser.x+=(chaseTarget-displayedChaser.x)*(1-Math.exp(-16*dt));
+   displayedChaser.y+=((chaser.y||0)-displayedChaser.y)*(1-Math.exp(-25*dt));
+   displayedChaser.phase=game.power.freezeRemaining>0?(chaser.phase||0):displayedChaser.phase+chaserVelocity*dt/(300*.73/4);
+  }
+  chaser.x=displayedChaser.x;chaser.y=displayedChaser.y;chaser.phase=displayedChaser.phase;
   const originalRunning=game.input?.running;
   player.x=renderedSelf.x;player.y=renderedSelf.y;player.phase=renderedSelf.phase;
   if(game.input)game.input.running=(held||originalRunning)&&!player.blocked;
@@ -608,6 +625,7 @@ function patchRenderer(){
     r.text('החבר מתחבר…',r.width-120,Math.max(95,r.ground-200),15,'#8bf8ff',true);
   }finally{
    player.x=ox;player.y=oy;player.phase=op;
+   Object.assign(chaser,savedChaser);
    if(game.input)game.input.running=originalRunning;
   }
   lastOnlineFrame=now;
@@ -632,19 +650,17 @@ function startCleanRenderer(){
  const runFrame=timestamp=>{
   requestAnimationFrame(runFrame);
   if(!frame?.game||!running||!latest||latest.outcome)return;
-  // 30 fps is a stable target for older iPhones at reduced GPU resolution.
-  // The old embedded game loop was painting 60+ times AND running a redundant
-  // 120 Hz accumulator while also receiving network snapshots.
-  const mobile=matchMedia('(pointer:coarse)').matches;
-  const interval=mobile?1000/30:1000/45;
-  if(timestamp-previousPaint<interval)return;
+  // One paced renderer with the online pixel budget. RAF timestamps can be
+  // slightly below 16.667 ms: tolerate rounding instead of dropping a frame.
+  const interval=1000/60;
+  if(timestamp-previousPaint<interval-.75)return;
   previousPaint=timestamp;
   frame.renderer.drawInterpolated(frame.game);
  };
  requestAnimationFrame(runFrame);
 }
 
-function revealGameCanvas(){if(gameCanvasRevealed)return;const doc=$('original').contentDocument;if(!doc?.body)return;gameCanvasRevealed=true;
+function revealGameCanvas(){const doc=$('original').contentDocument;if(!doc?.body)return;if(gameCanvasRevealed&&!doc.body.classList.contains('home'))return;gameCanvasRevealed=true;
  // The original lobby leaves body.home active even after the multiplayer engine starts.
  // That class applies blur(13px) and brightness(.2) to the entire game canvas.
  doc.body.classList.remove('home');doc.getElementById('overlay')?.classList.add('hidden');
@@ -652,6 +668,9 @@ function revealGameCanvas(){if(gameCanvasRevealed)return;const doc=$('original')
 }
 function updateGame(m){const me=m.players.find(p=>p.id===session?.id),other=m.players.find(p=>p.id!==session?.id);if(!me||!frame)return;const g=frame.game;
  if(!g.__onlineStarted){
+ // Standalone Controls exposes running as a getter. Network input must be
+ // a separate writable object, otherwise the first snapshot aborts rendering.
+ g.input={running:false,lifting:false,clear(){this.running=false;this.lifting=false;}};
  g.difficulty=m.difficulty||'normal';g.start();
  g.update=()=>{};g.events=[];g.__onlineStarted=true;
  renderedSelf=null;renderedFriend=null;frame.renderer.reset(g);
@@ -740,7 +759,7 @@ $('shareBtn').onclick=async()=>{const l=new URL(location.href);l.searchParams.se
 $('resultAgain').onclick=()=>{$('againBtn').click();hideResult();roomView();announce('ממתינים למשחק חוזר…');};
 $('resultLeave').onclick=()=>$('leaveBtn').click();
 $('leaveBtn').onclick=()=>{autoReadyWhenLoaded=false;manualLeave=true;send({type:'leave'});closeSocket();clearSession();menuView();announce('יצאת מהחדר')};
-async function setupFrame(){let attempt=0;while(attempt++<110){try{const f=$('original').contentWindow;const bridge=f.eval('({game,renderer,assets,wardrobe,controls,contentReady:typeof drop2==="undefined"||drop2.ready===true})');if(bridge?.game&&bridge?.renderer&&bridge.assets.loaded&&bridge.wardrobe&&bridge.contentReady){
+async function setupFrame(){let attempt=0;while(attempt++<110){try{const f=$('original').contentWindow;const bridge=f.eval('({game,renderer,assets,wardrobe,controls,contentReady:(typeof drop2==="undefined"||drop2.ready===true)&&(typeof newHeroes==="undefined"||newHeroes.ready===true)})');if(bridge?.game&&bridge?.renderer&&bridge.assets.loaded&&bridge.wardrobe&&bridge.contentReady){
 await Promise.race([Promise.resolve(bridge.game.wallet.ready).catch(()=>{}),new Promise(resolve=>setTimeout(resolve,3500))]);
 // Do not refetch the cloud profile synchronously here: it can keep the entire
 // multiplayer UI waiting when auth or the remote save provider is slow.
@@ -755,7 +774,7 @@ Promise.resolve(wallet.ready).then(()=>{
  rewardWallet=installRewardWallet(wallet,f.localStorage);
  creditSnapshot(latest);
 }).catch(()=>announce('החשבון לא נטען. התגמולים ימתינו לחיבור מחדש.'));
-frame=bridge;appReady=true;
+frame=bridge;bridge.game.input={running:false,lifting:false,clear(){this.running=false;this.lifting=false;}};appReady=true;
 // The regular game animates its lobby previews on every animation frame. They are
 // invisible in online mode and waste CPU/GPU time beside multiplayer drawing.
 if(typeof bridge.wardrobe.animatePreview==='function')bridge.wardrobe.animatePreview=()=>{};

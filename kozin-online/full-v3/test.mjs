@@ -4,6 +4,11 @@ const profiles=(a='luzo',b='michael')=>[{id:'a',name:'א',hero:a,gear:{outfit:'d
 for(const hero of CATALOG.heroes){const w=new FullWorld(profiles(hero,'michael'),'hard',77);if(hero==='michael')for(let j=0;j<181;j++)w.step();w.action('a','power');for(let i=0;i<10;i++)w.step();assert.equal(w.games[0].power.type,hero);assert(w.snapshot().players[0].gear.outfit==='dogs');}
 for(const hero of ['moreno']){const w=new FullWorld(profiles(hero),'hard',1);w.action('a','power');const x=w.chaser.x;for(let i=0;i<60;i++){w.step();assert.equal(w.chaser.x,x);}assert.equal(w.games[0].power.freezeRemaining,0);w.time=6.2;w.step();assert(w.chaser.x>x);}
 {
+ const w=new FullWorld(profiles('luzo','luzo'),'normal',20261021);
+ w.spawn=()=>{};w.obstacles=[];w.foods=[];w.input('a',{run:true});w.input('b',{run:true});
+ for(let i=0;i<720;i++){w.step();assert.equal(w.outcome,null);if(w.time>=6)for(const g of w.games)assert(g.player.x-w.chaser.x<=281,'startup ramp must not leave Kozin off-screen');}
+}
+{
  const w=new FullWorld(profiles(),'hard',2),f=w.foods[0];w.games.forEach(g=>{g.player.x=f.x;g.player.y=f.y-95;});w.step();assert.equal(w.games.reduce((n,g)=>n+g.count,0),1);assert.equal(w.games.reduce((n,g)=>n+g.wallet.food,0),1);assert(!w.foods.includes(f));
 }
 {
