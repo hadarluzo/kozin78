@@ -2374,6 +2374,38 @@ expansion.drawTyping=function(renderer,g,x,y,height,moving){
  RunnerGame.prototype.eat=function(f){if(this.wallet.selected==='michael')history(this).foods.add(key(f));return eat.call(this,f);};
 })();
 
+// Run-only atlases: action poses, portraits, powers and wardrobe stay untouched.
+const runAnimation={
+ ready:false,
+ async load(){
+  await Promise.all(['michael','tzippy'].map(async id=>{
+   const atlas=await new Promise((ok,no)=>{const i=new Image();i.onload=()=>ok(i);i.onerror=no;i.src='kozin-online/new-heroes/'+id+'-run.webp';});
+   const cw=atlas.width/4,ch=atlas.height/2;
+   const crops=Array.from({length:8},(_,n)=>{
+    const c=newHeroes.crop(atlas,n%4*cw,Math.floor(n/4)*ch,cw,ch);newHeroes.isolate(c);
+    const d=c.getContext('2d').getImageData(0,0,c.width,c.height).data;
+    let l=c.width,r=0,t=c.height,b=0;
+    for(let y=0;y<c.height;y++)for(let x=0;x<c.width;x++)if(d[(y*c.width+x)*4+3]>100){l=Math.min(l,x);r=Math.max(r,x);t=Math.min(t,y);b=Math.max(b,y);}
+    let headX=0,count=0;
+    for(let y=t;y<t+(b-t)*.15;y++)for(let x=l;x<=r;x++)if(d[(y*c.width+x)*4+3]>160){headX+=x;count++;}
+    return {c,l,r,t,b,headX:count?headX/count:(l+r)/2};
+   });
+   // One scale for the entire cycle, never stretch each bent pose to full height.
+   // Contact frames determine floor height; the passing/flight feet may lift.
+   const contactHeight=Math.max(crops[0].b-crops[0].t+1,crops[4].b-crops[4].t+1);
+   const scale=Math.min(300/contactHeight,400/Math.max(...crops.map(f=>f.r-f.l+1)));
+   const lift=[0,2,5,3,0,2,5,3];
+   const frames=crops.map((f,n)=>{
+    const c=newHeroes.canvas(448,384),x=c.getContext('2d');
+    x.drawImage(f.c,248-f.headX*scale,35-lift[n]-f.t*scale,f.c.width*scale,f.c.height*scale);
+    return c;
+   });
+   this[id]=frames;
+   for(let n=0;n<8;n++)assets.heroFrames[id][n]=frames[n];
+  }));
+  this.ready=true;
+ }
+};
 // Identity images are reused in every pose; changing outfits never regenerates a face.
 const newHeroes={
  canvas(w,h){const c=document.createElement('canvas');c.width=w;c.height=h;return c;},
@@ -2401,6 +2433,7 @@ const newHeroes={
    }
   }
   this.props=[];for(let n=0;n<12;n++)this.props.push(wardrobe.trim(this.crop(props,n%4*384,Math.floor(n/4)*1024/3,384,1024/3)));
+  await runAnimation.load();
   this.ready=true;wardrobe.portraitCache.clear();
  },
  costumeHead(c,pose){
