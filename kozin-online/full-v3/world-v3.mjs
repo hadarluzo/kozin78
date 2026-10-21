@@ -71,7 +71,7 @@ export class FullWorld {
    const wipe=this.games.some(g=>g.combat.wipe>0),speed=trailingMoving?base-this.boss.pursuitRate()-(wipe?36:0):65;
    if(openingGrace){
     // Keep Kozin visible near the slower player, but never allow a startup catch.
-    k.x=Math.min(trailing.player.x-(CONFIG.catchGap+165),Math.max(k.x,trailing.player.x-(CONFIG.startGap+35)));
+    k.x=Math.min(trailing.player.x-(CONFIG.catchGap+165),Math.max(k.x,trailing.player.x-CONFIG.maxGap));
     }else{
     // Fade in the chase over three seconds instead of jumping to full speed
     // at the exact end of the protected opening. This leaves actual time to react.
@@ -79,7 +79,7 @@ export class FullWorld {
     k.x+=Math.max(0,speed)*dt*scale*(trailingMoving?1:ramp);
     // A running team must not leave the common pursuer off-screen during
     // the startup ramp. Freeze remains an explicit exception above.
-    if(trailingMoving)k.x=Math.max(k.x,trailing.player.x-CONFIG.maxGap);
+    if(trailingMoving)k.x+=Math.min(Math.max(0,trailing.player.x-k.x-CONFIG.maxGap),80*dt*scale);
    }
    const trail=trailing.trail;while(trail.length>2&&trail[1].x<k.x)trail.shift();
    if(trail.length>1&&k.x>=trail[0].x){const [a,b]=trail;k.y=a.y+(b.y-a.y)*Math.max(0,Math.min(1,(k.x-a.x)/(b.x-a.x||1)));}else k.y=0;

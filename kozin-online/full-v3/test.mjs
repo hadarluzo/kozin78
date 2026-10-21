@@ -9,6 +9,11 @@ for(const hero of ['moreno']){const w=new FullWorld(profiles(hero),'hard',1);w.a
  for(let i=0;i<720;i++){w.step();assert.equal(w.outcome,null);if(w.time>=6)for(const g of w.games)assert(g.player.x-w.chaser.x<=281,'startup ramp must not leave Kozin off-screen');}
 }
 {
+ const w=new FullWorld(profiles('michael','yona'),'normal',20261022);w.spawn=()=>{};w.obstacles=[];w.foods=[];w.time=8;
+ w.games[0].player.catEchoGap=250;w.games[0].player.catEchoLastX=w.games[0].player.x;w.games[1].player.x=2200;w.input('b',{run:true});
+ const before=w.chaser.x;w.step();assert(w.chaser.x-before<20,'changing the chase target after cat rescue must not teleport Kozin');assert.equal(w.outcome,null);
+}
+{
  const w=new FullWorld(profiles(),'hard',2),f=w.foods[0];w.games.forEach(g=>{g.player.x=f.x;g.player.y=f.y-95;});w.step();assert.equal(w.games.reduce((n,g)=>n+g.count,0),1);assert.equal(w.games.reduce((n,g)=>n+g.wallet.food,0),1);assert(!w.foods.includes(f));
 }
 {

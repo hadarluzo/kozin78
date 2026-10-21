@@ -6,7 +6,7 @@ class Client{
  async open(){this.messages=[];this.seq=0;this.ws=new WebSocket(url,url.startsWith('wss:')?{headers:{Origin:'https://kozin78.vercel.app'}}:undefined);this.ws.on('message',v=>{const m=JSON.parse(v);this.messages.push(m);if(m.type==='snapshot')this.latest=m;if(m.type==='joined')this.id=m;});await new Promise((ok,no)=>{this.ws.once('open',ok);this.ws.once('error',no)});return this;}
  send(m){this.ws.send(JSON.stringify(m))}
  async until(fn,timeout=16000){const end=Date.now()+timeout;while(Date.now()<end){const m=this.messages.find(fn);if(m)return m;await wait(20);}throw Error('New hero socket timeout '+JSON.stringify(this.messages.slice(-1)));}
- input(run){if(this.ws.readyState===1)this.send({type:'input',seq:++this.seq,run,width:1000,height:620});}
+ input(run,lift=false){if(this.ws.readyState===1)this.send({type:'input',seq:++this.seq,run,lift,width:1000,height:620});}
  close(){this.ws.terminate();}
 }
 async function pair(hero,other){
@@ -23,9 +23,9 @@ async function pair(hero,other){
  }finally{a.send({type:'leave'});a.close();b.close();}
 }
 {
- const [a,b]=await pair('michael','moreno');let jumpTick=0;const timer=setInterval(()=>{a.input(false);b.input(true);if(++jumpTick%6===0)b.send({type:'action',action:'jump'});},70);
+ const [a,b]=await pair('michael','yona');let jumpTick=0;const timer=setInterval(()=>{a.input(false);b.input(true,true);if(++jumpTick%6===0)b.send({type:'action',action:'jump'});},70);
  try{
-  await a.until(m=>m.type==='snapshot'&&m.time>7.2&&!m.outcome);a.send({type:'action',action:'power'});
+  await a.until(m=>m.type==='snapshot'&&m.time>7.2&&!m.outcome);a.send({type:'action',action:'power'});b.send({type:'action',action:'power'});
   const cat=await a.until(m=>m.type==='snapshot'&&m.players[0].power.type==='michael');assert.equal(cat.players[0].power.freezeRemaining,0);
   const rewind=await a.until(m=>m.type==='snapshot'&&m.players[0].player.rewindSerial===1,7000);
   assert.equal(rewind.players[0].power.remaining,0);assert(rewind.players[0].power.cooldown>65);assert(!rewind.players[1].player.rewindSerial);assert(!rewind.outcome);assert(rewind.players[0].player.catEchoGap>82);
