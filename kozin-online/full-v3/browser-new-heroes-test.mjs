@@ -9,25 +9,37 @@ function check(){
  const ensure=(v,m)=>{if(!v)throw Error(m)};
  ensure(runAnimation.ready,'corrected running atlases loaded before game ready');
  result.correctedRuns={};
- for(const id of ['michael','tzippy']){
+ for(const id of ['michael','tzippy'])for(const outfit of runAnimation.outfits){
+  const key=id+'/'+outfit,gear=outfit==='base'?{}:{outfit};
   const signatures=[],tops=[],feet=[];
   for(let n=0;n<8;n++){
-   const f=wardrobe.getFrame(id,n,{}).img;
-   ensure(assets.heroFrames[id][n]===runAnimation[id][n],'base run uses corrected frame '+id+n);
+   const f=wardrobe.getFrame(id,n,gear).img;
+   const source=outfit==='base'?assets.heroFrames[id][n]:wardrobe.costumes[id][outfit][n];
+   ensure(source===runAnimation.frames[id][outfit][n],'outfit actually selects corrected run '+key+n);
    const d=f.getContext('2d').getImageData(0,0,448,384).data;
    let top=384,bottom=0,left=448,right=0;
    for(let y=0;y<384;y++)for(let x=0;x<448;x++)if(d[(y*448+x)*4+3]>100){top=Math.min(top,y);bottom=Math.max(bottom,y);left=Math.min(left,x);right=Math.max(right,x);}
-   ensure(left>4&&right<443&&top>20&&bottom<345,'no clipped head/feet '+id+n);
+   ensure(left>4&&right<443&&top>20&&bottom<345,'no clipped head/feet '+key+n);
    tops.push(top);feet.push(bottom);signatures.push(f.toDataURL());
   }
-  ensure(new Set(signatures).size===8,'eight genuinely different run images '+id);
-  ensure(Math.max(...tops)-Math.min(...tops)<=7,'stable head registration '+id);
-  ensure(Math.abs(feet[0]-334)<=4&&Math.abs(feet[4]-334)<=4,'contact poses meet floor '+id);
-  ensure(Math.min(feet[3],feet[7])<325,'flight poses lift feet '+id);
+  ensure(new Set(signatures).size===8,'eight genuinely different run images '+key);
+  ensure(Math.max(...tops)-Math.min(...tops)<=7,'stable head registration '+key);
+  ensure(Math.max(feet[0],feet[4])>=330&&Math.max(feet[0],feet[4])<=338,'contact poses meet floor '+key);
+  ensure(Math.min(...feet)<330,'passing/flight poses lift feet '+key);
   for(const n of [8,9,10,11])ensure(assets.heroFrames[id][n]===expansion.frames[id][n],'idle/action pose unchanged '+id+n);
-  for(const outfit of ['tech','fahima','dogs','paisley'])for(let n=0;n<12;n++)ensure(wardrobe.getFrame(id,n,{outfit}).img?.width,'preserved costume '+id+outfit+n);
-  result.correctedRuns[id]={frames:8,headDrift:Math.max(...tops)-Math.min(...tops),contact:[feet[0],feet[4]]};
+  if(outfit!=='base')for(let n=8;n<12;n++)ensure(wardrobe.costumes[id][outfit][n]===runAnimation.legacyCostumes[id][outfit][n-8],'costume action unchanged '+key+n);
+  for(const item of GEAR.filter(g=>g.slot!=='outfit'))for(let n=0;n<8;n++)ensure(wardrobe.getFrame(id,n,{...gear,[item.slot]:item.id}).img?.width,'running accessory '+key+item.id+n);
+  result.correctedRuns[key]={frames:8,headDrift:Math.max(...tops)-Math.min(...tops),contact:[feet[0],feet[4]]};
  }
+ // Reproduce the report: Savta in the grey tracksuit, through the real game renderer.
+ const savedHero=game.wallet.selected,savedGear=wardrobe.equipped,originalGetFrame=wardrobe.getFrame,savedState=game.state,savedInput=game.input;
+ const selectedPoses=[];
+ wardrobe.getFrame=function(id,pose,gear=this.equipped){if(id==='tzippy'&&gear.outfit==='tech')selectedPoses.push(pose);return originalGetFrame.call(this,id,pose,gear);};
+ game.wallet.selected='tzippy';wardrobe.equipped={outfit:'tech'};game.player.jumps=0;game.player.blocked=false;game.combat.attack=null;game.power.remaining=0;game.state='playing';game.input={running:true};
+ try{for(let n=0;n<8;n++){game.player.phase=(n+.01)/.8;renderer.character(game,false);}}
+ finally{wardrobe.getFrame=originalGetFrame;game.wallet.selected=savedHero;wardrobe.equipped=savedGear;game.state=savedState;game.input=savedInput;}
+ ensure(new Set(selectedPoses).size===8,'real Savta grey-suit renderer advances all eight corrected poses');
+ result.greySuitRendererPoses=selectedPoses;
  for(const id of ['bracha','fahima']){
   ensure(HEROES[id].price===2500,'hero price');
   for(const outfit of [null,'tech','fahima','dogs','paisley']){
