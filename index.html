@@ -2374,12 +2374,13 @@ expansion.drawTyping=function(renderer,g,x,y,height,moving){
  RunnerGame.prototype.eat=function(f){if(this.wallet.selected==='michael')history(this).foods.add(key(f));return eat.call(this,f);};
 })();
 
-// Run-only atlases: action poses, portraits, powers and wardrobe stay untouched.
+// Run-only atlases for base AND shop outfits. Action poses and powers stay intact.
 const runAnimation={
- ready:false,
+ ready:false,outfits:['base','tech','fahima','dogs','paisley'],frames:{},legacyCostumes:{},
  async load(){
-  await Promise.all(['michael','tzippy'].map(async id=>{
-   const atlas=await new Promise((ok,no)=>{const i=new Image();i.onload=()=>ok(i);i.onerror=no;i.src='kozin-online/new-heroes/'+id+'-run.webp';});
+  await Promise.all(['michael','tzippy'].flatMap(id=>this.outfits.map(async outfit=>{
+   const name=id+(outfit==='base'?'':'-'+outfit)+'-run';
+   const atlas=await new Promise((ok,no)=>{const i=new Image();i.onload=()=>ok(i);i.onerror=no;i.src='kozin-online/new-heroes/'+name+'.webp';});
    const cw=atlas.width/4,ch=atlas.height/2;
    const crops=Array.from({length:8},(_,n)=>{
     const c=newHeroes.crop(atlas,n%4*cw,Math.floor(n/4)*ch,cw,ch);newHeroes.isolate(c);
@@ -2400,9 +2401,15 @@ const runAnimation={
     x.drawImage(f.c,248-f.headX*scale,35-lift[n]-f.t*scale,f.c.width*scale,f.c.height*scale);
     return c;
    });
-   this[id]=frames;
-   for(let n=0;n<8;n++)assets.heroFrames[id][n]=frames[n];
-  }));
+   (this.frames[id]??={})[outfit]=frames;
+   if(outfit==='base'){
+    this[id]=frames;
+    for(let n=0;n<8;n++)assets.heroFrames[id][n]=frames[n];
+   }else{
+    (this.legacyCostumes[id]??={})[outfit]=wardrobe.costumes[id][outfit].slice(8);
+    for(let n=0;n<8;n++)wardrobe.costumes[id][outfit][n]=frames[n];
+   }
+  })));
   this.ready=true;
  }
 };
