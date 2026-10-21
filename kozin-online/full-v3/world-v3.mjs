@@ -12,7 +12,7 @@ export class FullWorld {
  constructor(profiles,difficulty='normal',seed=Date.now(),options={}){
   this.api=engine(seed);const {RunnerGame,DIFFICULTIES,CONFIG}=this.api;
   this.difficulty=DIFFICULTIES[difficulty]?difficulty:'normal';this.tick=0;this.time=0;this.outcome=null;this.sequence=0;this.startDelay=options.countdown===true?4:0;
-  this.games=profiles.map((p,i)=>{const g=new RunnerGame({effect(){},music(){}});g.difficulty=this.difficulty;g.wallet.selected=this.api.HEROES[p.hero]?p.hero:'luzo';g.wallet.name=p.name;g.input={running:false,lifting:false,clear(){this.running=false;this.lifting=false;}};g.start();g.id=p.id;g.gear=p.gear;g.secondary=!!i;g.hitIds=new Set();g.passedIds=new Set();g.contactIds=new Set();g.viewWidth=1000;g.events=[];return g;});
+  this.games=profiles.map((p,i)=>{const g=new RunnerGame({effect(){},music(){}});g.difficulty=this.difficulty;g.wallet.selected=this.api.HEROES[p.hero]?p.hero:'luzo';g.wallet.name=p.name;g.input={running:false,lifting:false,clear(){this.running=false;this.lifting=false;}};g.start();g.id=p.id;g.networked=true;g.gear=p.gear;g.secondary=!!i;g.hitIds=new Set();g.passedIds=new Set();g.contactIds=new Set();g.viewWidth=1000;g.events=[];return g;});
   // All players enter the same shared-world starting line, not staggered
   // by their roster order. Keep separate player objects for independent play.
   const startingX=this.games[0].player.x,startingY=this.games[0].player.y;
@@ -27,7 +27,7 @@ export class FullWorld {
  action(id,action){const g=this.games.find(g=>g.id===id);if(!g||this.outcome||this.time<this.startDelay)return false;
   if(action==='jump'){g.jump();return true;}if(action==='power'){g.visibleRight=g.player.x+Math.min(1500,Math.max(700,g.viewWidth))*.57;return g.power.activate(g);}if(['kick','punch'].includes(action))return g.combat.strike(g,action);return false;
  }
- input(id,m){const g=this.games.find(g=>g.id===id);if(g){g.input.running=m.run===true;g.input.lifting=m.lift===true;g.viewWidth=Math.min(1500,Math.max(700,Number(m.width)||1000));}}
+ input(id,m){const g=this.games.find(g=>g.id===id);if(g){g.input.running=m.run===true;g.input.lifting=m.lift===true;g.viewWidth=Math.min(1500,Math.max(700,Number(m.width)||1000));g.viewHeight=Math.min(1600,Math.max(620,Number(m.height)||620));}}
  step(dt=1/60){
   if(this.outcome)return;
   const {CONFIG}=this.api;this.tick++;this.time+=dt;
@@ -38,7 +38,7 @@ export class FullWorld {
   // discover the controls. Non-countdown test worlds keep the original grace.
   const graceEnd=this.startDelay?this.startDelay+1.5:6;
   const openingGrace=this.time<graceEnd;
-  const lag=this.games.reduce((a,b)=>a.player.x<b.player.x?a:b);
+  const lag=(this.games.filter(g=>g.player.catEchoGap==null).length?this.games.filter(g=>g.player.catEchoGap==null):this.games).reduce((a,b)=>a.player.x<b.player.x?a:b);
   // One shared generator, boss, chaser and enemy set for both players.
   const owner=this.generator,savedX=owner.player.x;owner.player.x=Math.max(...this.games.map(g=>g.player.x));owner.obstacles=this.obstacles;owner.foods=this.foods;owner.boss=this.boss;this.spawn(2300);owner.player.x=savedX;this.assignIds();
   lag.chaser=this.chaser;this.chaser.gap=lag.player.x-this.chaser.x;this.boss.update(lag,dt);
@@ -62,7 +62,7 @@ export class FullWorld {
    }
   }
   this.assignIds();
-  const trailing=this.games.reduce((a,b)=>a.player.x<b.player.x?a:b),k=this.chaser;
+  const trailing=(this.games.filter(g=>g.player.catEchoGap==null).length?this.games.filter(g=>g.player.catEchoGap==null):this.games).reduce((a,b)=>a.player.x<b.player.x?a:b),k=this.chaser;
   if(!frozen){
    const trailingMoving=trailing.input.running||trailing.power.carrying;
    const base=trailing.profile.speed*(1+trailing.profile.growth*Math.min(1,this.time/120));
@@ -90,7 +90,8 @@ export class FullWorld {
   const map=Math.min(this.api.MAPS.length-1,Math.floor(Math.max(0,trailing.player.x-320)/CONFIG.mapLength));
   for(const g of this.games){g.chaser=k;g.boss=this.boss;g.mapIndex=map;g.obstacles=this.obstacles;g.foods=this.foods;g.combat.enemies=this.enemies;}
   k.gap=trailing.player.x-k.x;
-  const caught=openingGrace?[]:this.games.filter(g=>g.player.x-k.x<CONFIG.catchGap);
+  for(const g of this.games)if(g.player.catEchoGap!=null){const p=g.player;p.catEchoGap+=p.x-(p.catEchoLastX??p.x)-(k.x-oldChaserX);p.catEchoLastX=p.x;if(p.x-k.x>=p.catEchoGap){delete p.catEchoGap;delete p.catEchoLastX;}}
+  const caught=openingGrace?[]:this.games.filter(g=>(g.player.catEchoGap??g.player.x-k.x)<CONFIG.catchGap&&!g.rescueCat());
   if(caught.length||k.energy<=0){
    const escaped=k.energy<=0;
    const losers=escaped?[]:caught.map(g=>g.id);

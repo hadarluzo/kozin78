@@ -1,0 +1,55 @@
+name: Assemble and verify new heroes
+on:
+  push:
+    branches: [codex/bracha-fahima-complete]
+    paths: [kozin-online/new-heroes/index.patch, .github/workflows/assemble-new-heroes.yml]
+permissions:
+  contents: write
+jobs:
+  assemble:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/bracha-fahima-complete
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Apply verified game patch
+        run: |
+          if ! grep -q 'BEGIN NEW HEROES' index.html; then
+            git apply --unidiff-zero kozin-online/new-heroes/index.patch
+          fi
+          test "$(git hash-object index.html)" = 91b1309057d91c84731c1f99d1baef5c8ccf0ca1
+      - run: npm ci --prefix kozin-online
+      - name: Verify rendering and game behavior
+        run: |
+          node kozin-online/full-v3/test.mjs
+          node kozin-online/full-v3/new-heroes-test.mjs
+          node kozin-online/full-v3/rewards-test.mjs
+          node kozin-online/full-v3/client-test.mjs
+          node kozin-online/full-v3/browser-game-render-test.mjs
+          node kozin-online/full-v3/browser-new-heroes-test.mjs
+      - name: Verify two connected clients and reconnect
+        shell: bash
+        run: |
+          set -e
+          PORT=9087 KOZIN_SMOKE_ON_START=0 node kozin-online/server.js > /tmp/kozin.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true; cat /tmp/kozin.log' EXIT
+          for attempt in $(seq 1 40); do
+            if curl -fsS http://127.0.0.1:9087/full-v3/health >/dev/null; then break; fi
+            sleep 0.2
+          done
+          node kozin-online/full-v3/live-test.mjs ws://127.0.0.1:9087/full-v3
+          node kozin-online/full-v3/new-heroes-live-test.mjs ws://127.0.0.1:9087/full-v3
+      - name: Save verified assembled game to review branch
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          if ! git diff --cached --quiet; then
+            git commit -m 'Assemble verified Bracha, Fahima and Mitzi game build'
+            git push origin HEAD:codex/bracha-fahima-complete
+          fi

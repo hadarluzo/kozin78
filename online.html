@@ -83,7 +83,7 @@ $('nickname').readOnly=false;$('nickname').removeAttribute('aria-readonly');
 $('nickname').placeholder='שם שחקן (אפשר להשאיר ריק)';
 $('accountNote').textContent='ליצירת חדר אין צורך לחכות לטעינת המשחק. הדמויות והבגדים ייטענו בחדר.';
 const starter=document.createElement('option');starter.value='luzo';starter.textContent='הדר';$('hero').append(starter);$('hero').value='luzo';
-let frame=null,ws=null,profile=null,room=null,session=null,ready=false,running=false,seq=0,held=false,latest=null,remote=null,reconnectTimer=null,reconnectStart=0,stopped=false,manualLeave=false,appReady=false,renderInstalled=false,lastSent=0,activeRound=null,smoothSelf=null,smoothChaser=null,smoothRemote=null,lastPaintTime=0,lastSnapshotAt=0,introStartedAt=0,visualJump=null,frameCount=0,frameSum=0,frameSampleAt=0;const roomRoster=new Map();const HERO_LABELS={luzo:'הדר',yishai:'ישי',eyal:'אייל',moreno:'מורנו',hashi:'האשי',yona:'יונה',tzippy:'סבתא',michael:'מיכאל'};const heroName=id=>HERO_LABELS[id]||id||'דמות לא ידועה';const rememberRoster=ps=>{for(const p of ps||[]){const old=roomRoster.get(p.id)||{};roomRoster.set(p.id,{...old,...p,gear:{...(old.gear||{}),...(p.gear||{})}})}};const enrichedPlayers=ps=>(ps||[]).map(p=>{const old=roomRoster.get(p.id)||{};return {...old,...p,hero:p.hero||old.hero||'luzo',gear:{...(old.gear||{}),...(p.gear||{})}}});
+let frame=null,ws=null,profile=null,room=null,session=null,ready=false,running=false,seq=0,held=false,latest=null,remote=null,reconnectTimer=null,reconnectStart=0,stopped=false,manualLeave=false,appReady=false,renderInstalled=false,lastSent=0,activeRound=null,smoothSelf=null,smoothChaser=null,smoothRemote=null,lastPaintTime=0,lastSnapshotAt=0,introStartedAt=0,visualJump=null,frameCount=0,frameSum=0,frameSampleAt=0;const roomRoster=new Map();const HERO_LABELS={luzo:'הדר',yishai:'ישי',eyal:'אייל',moreno:'מורנו',hashi:'האשי',yona:'יונה',tzippy:'סבתא',michael:'מיכאל',bracha:'ברכה',fahima:'פחימה'};const heroName=id=>HERO_LABELS[id]||id||'דמות לא ידועה';const rememberRoster=ps=>{for(const p of ps||[]){const old=roomRoster.get(p.id)||{};roomRoster.set(p.id,{...old,...p,gear:{...(old.gear||{}),...(p.gear||{})}})}};const enrichedPlayers=ps=>(ps||[]).map(p=>{const old=roomRoster.get(p.id)||{};return {...old,...p,hero:p.hero||old.hero||'luzo',gear:{...(old.gear||{}),...(p.gear||{})}}});
 
 function drawHeroPortrait(id,canvas){
  const ctx=canvas.getContext('2d');ctx.clearRect(0,0,canvas.width,canvas.height);
@@ -478,7 +478,7 @@ function patchRenderer(){
  const originalDraw=r.draw.bind(r);
  const originalUpdateCamera=r.updateCamera.bind(r);
  const defaultGear=frame.wardrobe.equipped;
- let previousRemoteId=null,previousRemotePacket=null,remoteAppearance=null,remoteLabel='';
+ let previousRemoteId=null,previousRemotePacket=null,remoteAppearance=null,remoteLabel='',remoteRewindSerial=0;
 
  function paintTeammate(game,friend){
   const canvasCtx=r.ctx,camera=r.camera;
@@ -493,6 +493,7 @@ function patchRenderer(){
   const dt=Math.min(.05,Math.max(.001,(now-lastOnlineFrame)/1000||.016));
   const remoteRunning=!!friend.run&&!source.blocked;
   const remoteSpeed=Math.min(700,Math.max(0,Number(friend.currentSpeed)||425));
+  if((source.rewindSerial||0)!==remoteRewindSerial){renderedFriend=null;remoteRewindSerial=source.rewindSerial||0;}
   if(!renderedFriend||Math.abs(renderedFriend.x-nextX)>500||previousRemoteId!==friend.id)
    renderedFriend={x:nextX,y:nextY,phase:source.phase||0};
   else{
@@ -655,9 +656,9 @@ function updateGame(m){const me=m.players.find(p=>p.id===session?.id),other=m.pl
  g.update=()=>{};g.events=[];g.__onlineStarted=true;
  renderedSelf=null;renderedFriend=null;frame.renderer.reset(g);
 }
- revealGameCanvas();g.state='playing';g.wallet.selected=me.hero;Object.assign(g.player,me.player);g.power=Object.assign(g.power,me.power||{});
+ revealGameCanvas();g.state='playing';g.wallet.selected=me.hero;if((g.player.rewindSerial||0)!==(me.player.rewindSerial||0)){renderedSelf=null;smoothSelf=null;visualJump=null;}if(me.player.catEchoGap==null)delete g.player.catEchoGap;Object.assign(g.player,me.player);if(['bracha','fahima'].includes(me.power?.type)&&me.power?.remaining>0)visualJump=null;g.power=Object.assign(g.power,me.power||{});
  const freezeSource=(m.players||[]).reduce((best,p)=>(p.power?.freezeRemaining||0)>(best?.freezeRemaining||0)?p.power:best,me.power);g.power.freezeRemaining=freezeSource?.freezeRemaining||0;g.power.freezeAge=freezeSource?.freezeAge||0;g.power.freezeFrame=freezeSource?.freezeFrame||0;
- g.combat=Object.assign(g.combat,me.combat||{});g.combat.enemies=m.enemies||[];Object.assign(g.chaser,m.chaser);g.boss=Object.assign(g.boss,m.boss||{});
+ g.combat=Object.assign(g.combat,me.combat||{});g.combat.enemies=m.enemies||[];Object.assign(g.chaser,m.chaser);if(me.player.catEchoGap!=null){g.chaser.x=me.player.x-me.player.catEchoGap;g.chaser.gap=me.player.catEchoGap;}g.boss=Object.assign(g.boss,m.boss||{});
  g.obstacles=m.obstacles||[];g.foods=m.foods||[];g.mapIndex=m.mapIndex||0;g.distance=me.distance||0;g.time=m.time||0;
  for(const k of ['score','count','combo','maxCombo','hits','missed','cleared','shield','grace','celebration','particles','popups','bubbles'])if(k in me)g[k]=me[k];
  if(!g.input)g.input={running:false,lifting:false,clear(){this.running=false;this.lifting=false;}};
@@ -686,7 +687,7 @@ function updateHud(){
  const powerButton=$('powerBtn'),disabled=cooldown>0;
  if(powerButton.disabled!==disabled)powerButton.disabled=disabled;
 }
-function sendInput(force){if(!running||!session||!frame)return;const now=Date.now();if(force!==true&&now-lastSent<65)return;lastSent=now;const width=frame.renderer?.width||1000;send({type:'input',seq:++seq,run:held,lift:false,width});}
+function sendInput(force){if(!running||!session||!frame)return;const now=Date.now();if(force!==true&&now-lastSent<65)return;lastSent=now;const width=frame.renderer?.width||1000;send({type:'input',seq:++seq,run:held,lift:false,width,height:frame.renderer?.height||620});}
 setInterval(()=>sendInput(false),100);
 // Measure actual socket latency separately from local rendering FPS.
 setInterval(()=>{if(ws?.readyState===WebSocket.OPEN)send({type:'ping',at:performance.now()})},5000);

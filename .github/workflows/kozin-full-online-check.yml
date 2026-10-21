@@ -40,8 +40,12 @@ jobs:
         run: node kozin-online/full-v3/browser-room-create-test.mjs
       - name: Verify real game art and teammate in Chromium
         run: node kozin-online/full-v3/browser-game-render-test.mjs
+      - name: Verify new sprites, all clothing, power rendering and offline cat rescue
+        run: node kozin-online/full-v3/browser-new-heroes-test.mjs
       - name: Run original-world multiplayer tests
         run: node kozin-online/full-v3/test.mjs
+      - name: Verify new hero timing and personal rewind
+        run: node kozin-online/full-v3/new-heroes-test.mjs
       - name: Verify online rewards and reconnect receipts
         run: node kozin-online/full-v3/rewards-test.mjs
       - name: Verify account roster and cross-iframe ownership
@@ -60,6 +64,7 @@ jobs:
             sleep 0.5
           done
           node kozin-online/full-v3/live-test.mjs ws://127.0.0.1:9087/full-v3
+          node kozin-online/full-v3/new-heroes-live-test.mjs ws://127.0.0.1:9087/full-v3
       - name: Check deployed production WebSocket room
         shell: bash
         run: |

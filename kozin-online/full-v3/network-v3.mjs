@@ -60,7 +60,7 @@ export function attachFullOnline(server,{route=true}={}){
    if(m.type==='input'){
     if(!Number.isSafeInteger(m.seq)||m.seq<=p.lastSeq||m.seq>p.lastSeq+100000)return;p.lastSeq=m.seq;p.lastInput=now;r.world.input(p.id,m);
    }else if(m.type==='action'&&['jump','punch','kick','power'].includes(m.action)){
-    const minGap=m.action==='jump'?35:75;if(now-(p.lastAction||0)<minGap)return;p.lastAction=now;r.world.action(p.id,m.action);
+    const minGap=m.action==='jump'?35:75;p.lastActions??={};if(now-(p.lastActions[m.action]||0)<minGap)return;p.lastActions[m.action]=now;r.world.action(p.id,m.action);
    }
   });
   ws.on('close',()=>{connections.set(ip,Math.max(0,(connections.get(ip)||1)-1));const r=ws.room,p=ws.player;if(!r||!p||p.ws!==ws)return;p.ws=null;p.ready=false;p.deadline=Date.now()+GRACE;r.world?.input(p.id,{run:false,lift:false});emit(r,state(r));});ws.on('error',()=>{});
@@ -80,6 +80,6 @@ export function attachFullOnline(server,{route=true}={}){
  },1000/60);loop.unref();
  const heartbeat=setInterval(()=>{for(const ws of wss.clients){if(!ws.alive)ws.terminate();else{ws.alive=false;ws.ping();}}},10000);heartbeat.unref();
  if(route)server.on('upgrade',(req,socket,head)=>{if(req.url?.split('?')[0]==='/full-v3')wss.handleUpgrade(req,socket,head,ws=>wss.emit('connection',ws,req));else socket.destroy();});
- const health=()=>({ok:true,protocol:PROTOCOL,rooms:rooms.size,tickHz:60,snapshotHz:20});
+ const health=()=>({ok:true,protocol:PROTOCOL,features:'bracha-fahima-mitzi-v1',heroes:CATALOG.heroes,rooms:rooms.size,tickHz:60,snapshotHz:20});
  return {wss,rooms,health,close(){clearInterval(loop);clearInterval(heartbeat);for(const r of rooms.values())closeRoom(r,'השרת מופעל מחדש');for(const ws of wss.clients)ws.close(1012,'Server restart');wss.close();}};
 }

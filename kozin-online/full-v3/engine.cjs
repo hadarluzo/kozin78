@@ -492,7 +492,9 @@ const HEROES = Object.freeze({
   eyal:{name:'אייל',power:'מונית',icon:'◫',cooldown:60,duration:1.4,color:'#ffba76',description:'פעם הבאה אני מזמין טקסי! מונית מפנה רק את המכשולים הגלויים במסך לפניך.'},
   hashi:{name:'חאשי',power:'עולם מחייך',icon:'◎',cooldown:60,duration:7,color:'#b5e58b',description:'פייסל ענק, ענן וחיוכים: העולם מאט ל־6 שניות והחיוכים נשארים ל־7 שניות.'},
   tzippy:{name:'סבתא',price:2500,power:'תופסים טרמפ',icon:'✦',cooldown:60,duration:4.5,color:'#dba7ce',description:'דמות רעולת פנים מרימה את ציפי ורצה איתה בידיים. פארקור אוטומטי וקפיצות למשך 4.5 שניות.'},
-  michael:{name:'מיכאל',price:1000,power:'קוד קארה',icon:'⌨',cooldown:45,duration:10,color:'#96c3ab',description:'מקליד במקלדת: קוזין קופא במקום לשנייה ומקבל שיער קארה לעשר שניות. הגוף והמצב שלו נשארים כמו שהם.'},
+  michael:{name:'מיכאל',price:1000,power:'כוח מיצי',icon:'🐾',cooldown:70,duration:3,color:'#96c3ab',description:'הופכים למיצי ל־3 שניות. אם קוזין תופס אותך בזמן הזה, חוזרים פעם אחת בדיוק 3 שניות לאחור. טעינה: 70 שניות.'},
+  bracha:{name:'ברכה',price:2500,power:'ענן כבידה',icon:'☁',cooldown:50,duration:4.5,color:'#b8d7bc',description:'ענן קסום מפחית את הכבידה ומגביה קפיצות למשך 4.5 שניות. טעינה: 50 שניות.'},
+  fahima:{name:'פחימה',price:2500,power:'המכונית הצהובה של פחימה',icon:'➤',cooldown:50,duration:6,color:'#ffe14f',description:'רוכבים על המכונית. בתוך 6 שניות קפיצה כפולה מפעילה טורבו חד־פעמי, ואז עוד 3 שניות רכיבה. טעינה: 50 שניות.'},
   moreno:{name:'מורנו',power:'זה לא מורנו!',icon:'◆',cooldown:40,duration:15,color:'#d8b6ff',description:'״זה לא מורנו זה פורנו!״ קוזין נשאר בבוקסר ל־15 שניות, קופא במקום לשנייה.'}
 });
 const MODIIN_SCENERY='DATA';
@@ -890,7 +892,7 @@ class RunnerGame {
         if(this.power.flying){
           p.vy=clamp(p.vy+(this.input.lifting?700:-280)*dt,-150,320);
           p.y=Math.max(0,p.y+p.vy*dt);if(p.y>620){p.y=620;p.vy=Math.min(0,p.vy);}
-        }else{p.vy-=CONFIG.gravity*dt;p.y+=p.vy*dt;}
+        }else{p.vy-=CONFIG.gravity*(this.heroGravity?.()??1)*dt;p.y+=p.vy*dt;if(['bracha','fahima'].includes(this.power.type)&&this.power.remaining>0&&p.y>this.heroCeiling()){p.y=this.heroCeiling();p.vy=Math.min(0,p.vy);}}
         if (p.y<=0) {p.y=0;p.vy=0;p.jumps=0;p.flip=0;p.landing=.16;this.burst(p.x,0,'#e1be8d',5);if(this.jumpBuffer>0){this.jumpBuffer=0;this.jump();}}
       }
       // Swept horizontal collision: previously hit obstacles remain solid.
@@ -1551,7 +1553,7 @@ const drop2={
   const icons=await load(DROP2_ART.icons);
   for(let n=0;n<4;n++){const c=document.createElement('canvas');c.width=512;c.height=512;c.getContext('2d').drawImage(icons,n%2*512,Math.floor(n/2)*512,512,512,0,0,512,512);const icon=wardrobe.trim(c);wardrobe.icons[9+n]=icon;wardrobe.urls[9+n]=icon.toDataURL();}
   await Promise.all(['tzippy','michael'].flatMap(id=>['tech','fahima'].map(async outfit=>{const atlas=await load(DROP2_ART[id+'_'+outfit]);wardrobe.costumes[id]??={};const frames=[];for(let n=0;n<12;n++){const c=document.createElement('canvas');c.width=448;c.height=384;c.getContext('2d').drawImage(atlas,n%4*448,Math.floor(n/4)*384,448,384,0,0,448,384);frames.push(c);}wardrobe.costumes[id][outfit]=frames;})));
-  await Promise.all(Object.keys(HEROES).map(async id=>{const atlas=await load(DROP2_ART[id]);wardrobe.costumes[id]??={};for(const [j,outfit]of ['dogs','paisley'].entries()){const frames=[];for(let n=0;n<12;n++){const c=document.createElement('canvas');c.width=448;c.height=384;c.getContext('2d').drawImage(atlas,n%4*448,(j*3+Math.floor(n/4))*384,448,384,0,0,448,384);frames.push(c);}wardrobe.costumes[id][outfit]=frames;}}));
+  await Promise.all(Object.keys(HEROES).filter(id=>DROP2_ART[id]).map(async id=>{const atlas=await load(DROP2_ART[id]);wardrobe.costumes[id]??={};for(const [j,outfit]of ['dogs','paisley'].entries()){const frames=[];for(let n=0;n<12;n++){const c=document.createElement('canvas');c.width=448;c.height=384;c.getContext('2d').drawImage(atlas,n%4*448,(j*3+Math.floor(n/4))*384,448,384,0,0,448,384);frames.push(c);}wardrobe.costumes[id][outfit]=frames;}}));
  },
  fringes(source,pose,id){
   this.cache??=new WeakMap();let slots=this.cache.get(source);if(!slots){slots=new Map();this.cache.set(source,slots);}const key=id+':'+pose;if(slots.has(key))return slots.get(key);
@@ -1594,4 +1596,97 @@ expansion.drawTyping=function(renderer,g,x,y,height,moving){
 };
 
 
+// BEGIN NEW HEROES
+// Shared by the standalone game and the authoritative multiplayer engine.
+// Histories never enter snapshots or saved accounts.
+(() => {
+ const histories=new WeakMap(), clone=x=>JSON.parse(JSON.stringify(x));
+ const key=o=>o.netId??`${o.x}:${o.y??o.height}:${o.seed??o.type}`;
+ const history=g=>{let h=histories.get(g);if(!h){h={clock:0,frames:[],foods:new Set(),passed:new Set(),enemies:new Set(),serial:0,enemySerial:0};histories.set(g,h);}return h;};
+ const capture=g=>({player:{...g.player},chaser:{...g.chaser},time:g.time,
+  ...(g.networked?{}:{obstacles:clone(g.obstacles),foods:clone(g.foods),trail:clone(g.trail),enemies:clone(g.combat.enemies),boss:clone(g.boss),nextX:g.nextX,encounter:g.encounter,routeBag:[...g.routeBag],lastRoute:g.lastRoute})});
+ const reset=RunnerGame.prototype.reset;
+ RunnerGame.prototype.reset=function(){histories.delete(this);return reset.call(this);};
+ const activate=HeroPower.prototype.activate;
+ HeroPower.prototype.activate=function(g){
+  const id=g.wallet.selected;
+  if(!['bracha','fahima','michael'].includes(id))return activate.call(this,g);
+  if(g.state!=='playing'||this.cooldown>0)return false;
+  if(id==='michael'&&history(g).clock<3){g.emit('notice','כוח מיצי זמין אחרי שלוש שניות של משחק');return false;}
+  Object.assign(this,{type:id,cooldown:HEROES[id].cooldown,remaining:HEROES[id].duration,elapsed:0,freezeRemaining:0,bobRemaining:0,slowRemaining:0,catUsed:false,boostUsed:false,boostTime:0,carStage:'ready'});
+  g.player.flip=0;
+  g.say('luzo',id==='michael'?'מיצי שומר עליי!':id==='fahima'?'קפיצה כפולה — טורבו!':'ענן כבידה!');
+  g.burst(g.player.x,g.player.y+95,id==='bracha'?'#d7e6d3':id==='fahima'?'#ffe345':'#b8e4ff',24);g.audio.effect('collect');return true;
+ };
+ const powerUpdate=HeroPower.prototype.update;
+ HeroPower.prototype.update=function(g,dt){
+  powerUpdate.call(this,g,dt);
+  if(this.type==='fahima'&&this.remaining>0&&this.boostTime>0){
+   this.boostTime=Math.max(0,this.boostTime-dt);g.player.vy=1100;g.player.jumps=2;g.player.flip=0;
+   if(!this.boostTime){this.carStage='coast';g.player.vy=Math.min(g.player.vy,100);}
+  }
+ };
+ const jump=RunnerGame.prototype.jump;
+ RunnerGame.prototype.jump=function(){
+  const q=this.power,p=this.player;
+  if(this.state==='playing'&&q.type==='fahima'&&q.remaining>0&&!q.boostUsed&&p.jumps===1){
+   Object.assign(q,{boostUsed:true,boostTime:.75,remaining:3.75,carStage:'boost'});
+   p.jumps=2;p.vy=1100;p.flip=0;this.audio.effect('flip');this.burst(p.x,p.y,'#ffad32',24);return;
+  }
+  const before=p.jumps;jump.call(this);
+  if(q.type==='bracha'&&q.remaining>0&&p.jumps>before){p.vy=750;p.flip=0;}
+  if(q.type==='fahima'&&q.remaining>0)p.flip=0;
+ };
+ RunnerGame.prototype.heroGravity=function(){return this.power.type==='bracha'&&this.power.remaining>0?.4:this.power.type==='fahima'&&this.power.boostTime>0?0:1;};
+ RunnerGame.prototype.heroCeiling=function(){return Math.max(240,Math.min(620,(this.viewHeight||620)-Math.max(140,(this.viewHeight||620)*.22)-190));};
+ RunnerGame.prototype.rescueCat=function(){
+  const q=this.power,h=history(this);
+  if(q.type!=='michael'||q.remaining<=0||q.catUsed||h.clock<3)return false;
+  const target=h.clock-3,frames=h.frames;
+  let a=frames[0],b=a;for(const f of frames){if(f.at<=target)a=f;if(f.at>=target){b=f;break;}b=f;}
+  if(!a||!b)return false;
+  for(const o of this.obstacles)if(o.passed)h.passed.add(key(o));
+  for(const e of this.combat.enemies)if(e.dead)h.enemies.add(e.rewindId??e.netId);
+  const u=b.at>a.at?Math.max(0,Math.min(1,(target-a.at)/(b.at-a.at))):0;
+  const p={...a.state.player};for(const k of ['x','y','vy','phase'])p[k]=a.state.player[k]+(b.state.player[k]-a.state.player[k])*u;
+  Object.assign(this.player,p,{rewindSerial:++h.serial,flip:0});
+  if(this.networked){
+   // Restore a personal chase gap; the common pursuer and teammate keep moving.
+   this.player.catEchoGap=Math.max(CONFIG.catchGap+35,a.state.player.catEchoGap??a.state.player.x-a.state.chaser.x);
+   this.player.catEchoLastX=this.player.x;
+  }else{
+   const s=a.state;Object.assign(this.chaser,s.chaser);this.chaser.x=this.player.x-this.chaser.gap;
+   this.obstacles=clone(s.obstacles).map(o=>({...o,passed:o.passed||h.passed.has(key(o))}));
+   this.foods=clone(s.foods).map(f=>({...f,taken:f.taken||h.foods.has(key(f))}));
+   this.trail=clone(s.trail);this.combat.enemies=clone(s.enemies).filter(e=>!h.enemies.has(e.rewindId??e.netId));
+   const beanCollected=this.boss.beanCollected,beanMissed=this.boss.beanMissed;Object.assign(this.boss,s.boss,{beanCollected,beanMissed});
+   for(const k of ['nextX','encounter','lastRoute'])this[k]=s[k];this.routeBag=[...s.routeBag];
+  }
+  this.distance=Math.max(0,this.player.x-320);this.mapIndex=Math.min(MAPS.length-1,Math.floor(this.distance/CONFIG.mapLength));
+  q.catUsed=true;q.remaining=0;q.rewindFlash=.65;this.player.invincible=Math.max(this.player.invincible,.2);
+  this.burst(this.player.x,this.player.y+90,'#b8e4ff',28);this.emit('notice','מיצי! חזרת בדיוק שלוש שניות לאחור');return true;
+ };
+ const finish=RunnerGame.prototype.finish;
+ RunnerGame.prototype.finish=function(win){if(!win&&!this.networked&&this.rescueCat())return;return finish.call(this,win);};
+ const update=RunnerGame.prototype.update;
+ RunnerGame.prototype.update=function(dt,width){
+  const active=this.state==='playing',h=this.wallet.selected==='michael'?history(this):null;
+  if(h&&active){
+   for(const e of this.combat.enemies){e.rewindId??=++h.enemySerial;if(e.dead)h.enemies.add(e.rewindId);}
+   if(!h.frames.length)h.frames.push({at:h.clock,state:capture(this)});
+   // Record consumed/passed identities before any catch can restore the world.
+   for(const f of this.foods)if(f.taken)h.foods.add(key(f));
+   for(const o of this.obstacles)if(o.passed)h.passed.add(key(o));
+   h.clock+=dt;
+  }
+  update.call(this,dt,width);
+  if(active&&this.power.rewindFlash>0)this.power.rewindFlash=Math.max(0,this.power.rewindFlash-dt);
+  if(h&&active){for(const e of this.combat.enemies){e.rewindId??=++h.enemySerial;if(e.dead)h.enemies.add(e.rewindId);}h.frames.push({at:h.clock,state:capture(this)});while(h.frames.length>2&&h.frames[1].at<h.clock-3.1)h.frames.shift();}
+ };
+ const collect=RunnerGame.prototype.collect,eat=RunnerGame.prototype.eat;
+ RunnerGame.prototype.collect=function(f){if(this.wallet.selected==='michael')history(this).foods.add(key(f));return collect.call(this,f);};
+ RunnerGame.prototype.eat=function(f){if(this.wallet.selected==='michael')history(this).foods.add(key(f));return eat.call(this,f);};
+})();
+
+// END NEW HEROES
 module.exports={RunnerGame,HeroPower,CombatSystem,BuddhaBoss,CONFIG,MAPS,HEROES,GEAR,DIFFICULTIES,PARKOUR_ROUTES,OBSTACLES};

@@ -1,0 +1,43 @@
+import assert from 'node:assert/strict';
+import {readFileSync,createReadStream} from 'node:fs';
+import {createServer} from 'node:http';
+import {spawn,spawnSync} from 'node:child_process';
+import {resolve,join} from 'node:path';
+const root=resolve(import.meta.dirname,'../..');
+function check(){
+ const result={poses:0,cosmetics:0,powerDraws:0};
+ const ensure=(v,m)=>{if(!v)throw Error(m)};
+ for(const id of ['bracha','fahima']){
+  ensure(HEROES[id].price===2500,'hero price');
+  for(const outfit of [null,'tech','fahima','dogs','paisley']){
+   const runs=[];for(let pose=0;pose<12;pose++){const f=wardrobe.getFrame(id,pose,{outfit}).img;ensure(f?.width>0,'pose '+id+pose);result.poses++;if(pose<8)runs.push(f);}
+   ensure(new Set(runs).size===8,'run cycle');
+   for(const item of GEAR){const f=wardrobe.getFrame(id,8,{outfit,[item.slot]:item.id}).img;ensure(f?.width>0,'gear '+item.id);result.cosmetics++;}
+  }
+ }
+ game.wallet={selected:'michael',food:0,xp:0,flushes:0,earn(){this.food++},gainXP(n){this.xp+=n},record(){},flush(){this.flushes++},save(){}};
+ game.difficulty='normal';game.start();game.input={running:true,lifting:false,clear(){}};game.spawn=()=>{};game.obstacles=[];game.foods=[];game.combat.nextWave=1e9;
+ for(let n=0;n<400;n++)game.update(1/120);
+ ensure(game.power.activate(game),'cat activation');
+ for(let n=0;n<60;n++)game.update(1/120);
+ const oldX=game.player.x,oldXP=game.wallet.xp;game.chaser.gap=1;game.update(1/120);
+ ensure(game.state==='playing','offline catch must rescue');ensure(game.player.x<oldX-1400,'offline rewind distance');ensure(game.wallet.flushes===0&&game.wallet.xp===oldXP,'no end reward or save on rescue');ensure(game.power.catUsed,'once-only rescue');
+ result.offlineCat=true;
+ wardrobe.equipped={outfit:'paisley',head:'kippah',feet:'nb',fringe:'tekhelet'};
+ for(const hero of ['bracha','fahima','michael']){
+  game.wallet.selected=hero;game.power.type=hero;game.power.remaining=2;game.power.elapsed=1;game.power.boostTime=hero==='fahima'?.4:0;
+  for(let n=0;n<8;n++){game.time=n/13;renderer.character(game,false);result.powerDraws++;}
+ }
+ game.state='paused';return result;
+}
+const script=`const f=document.getElementById('game');f.addEventListener('load',()=>{let attempts=0;const timer=setInterval(()=>{try{if(!f.contentWindow.eval('typeof newHeroes!=="undefined"&&newHeroes.ready')){if(++attempts>450)throw Error('art timeout');return;}clearInterval(timer);const r=f.contentWindow.eval('('+${JSON.stringify(check.toString())}+')()');document.getElementById('report').textContent=JSON.stringify({ok:true,...r});}catch(e){clearInterval(timer);document.getElementById('report').textContent=JSON.stringify({error:e.stack||String(e)});}},100);});`;
+const server=createServer((req,res)=>{
+ if(req.url==='/fixture'){res.setHeader('Content-Type','text/html; charset=utf-8');res.end('<iframe id="game" src="/index.html" style="width:1000px;height:620px"></iframe><pre id="report">loading</pre><script>'+script+'</script>');}
+ else if(req.url==='/index.html'||/^\/kozin-online\/(drop2|new-heroes)\/[a-z_-]+\.(png|webp)$/.test(req.url)){res.setHeader('Content-Type',req.url.endsWith('.html')?'text/html; charset=utf-8':req.url.endsWith('.png')?'image/png':'image/webp');createReadStream(join(root,req.url.slice(1))).pipe(res);}
+ else{res.writeHead(404);res.end();}
+});
+const browser=['google-chrome','google-chrome-stable','chromium','chromium-browser'].find(c=>spawnSync('which',[c]).status===0);assert(browser,'Chromium required');
+try{
+ await new Promise(r=>server.listen(0,'127.0.0.1',r));
+ const p=spawn(browser,['--headless=new','--no-sandbox','--disable-gpu','--disable-dev-shm-usage','--window-size=1200,800','--virtual-time-budget=55000','--dump-dom','http://127.0.0.1:'+server.address().port+'/fixture']);let out='',err='';p.stdout.on('data',v=>out+=v);p.stderr.on('data',v=>err+=v);const timer=setTimeout(()=>p.kill('SIGKILL'),85000).unref();const status=await new Promise((ok,no)=>{p.once('close',ok);p.once('error',no)});clearTimeout(timer);assert.equal(status,0,err.slice(-2000));const raw=out.match(/<pre id="report">([^<]+)<\/pre>/)?.[1];assert(raw,out.slice(-2000));const r=JSON.parse(raw.replaceAll('&quot;','"').replaceAll('&amp;','&'));assert(!r.error,r.error);assert(r.ok);console.log('KOZIN_NEW_HERO_BROWSER',JSON.stringify(r));
+}finally{server.close();}
