@@ -2602,7 +2602,7 @@ function showPrivateTestInfo(){
  setDialog('<h1>גרסת בדיקה פרטית</h1><p>∞ אוכל · כל הדמויות פתוחות · אפשר לקנות ולנסות את כל הבגדים.</p><p>התוצאות אינן נשלחות לטבלה. ההתקדמות נשמרת בנפרד ואינה משנה את החשבון הרגיל.</p><button class="primary" id="privateTestBack">חזרה למשחק</button>','privateTestBack',showMenu);
 }
 function accountLabel(){return game.wallet.user?'חשבון · '+game.wallet.name:'התחברות / שמירה';}
-function showAccount(){if(TEST_MODE){showPrivateTestInfo();return;
+function showAccount(){if(TEST_MODE){showPrivateTestInfo();return;}
  const w=game.wallet;controls.clear();game.state='menu';
  const logged=!!w.user;
  setDialog(`<div class="players-page progress-page"><div class="kicker">חשבון שחקן · אפשר תמיד לשחק כאורח</div><h1>${logged?'החשבון שלי':'כניסה לחשבון'}</h1>
@@ -2627,7 +2627,7 @@ function showAccount(){if(TEST_MODE){showPrivateTestInfo();return;
  finally{b.disabled=false;}
  };
 }
-async function showLeaderboard(){if(TEST_MODE){showPrivateTestInfo();return;
+async function showLeaderboard(){if(TEST_MODE){showPrivateTestInfo();return;}
  controls.clear();game.state='menu';
  const w=game.wallet;
  setDialog(`<div class="players-page leaderboard-luxury"><header class="lux-top"><div><div class="kicker">KOZIN · WORLD RANKING</div><h1>היכל המובילים</h1><p>100 המובילים לפי רמת השחקן. בשוויון רמות: XP. כמות האוכל מוצגת בלבד ואינה קובעת את הדירוג.</p></div><button class="secondary" id="leaderBack">חזרה ללובי ←</button></header><div class="lux-ranking-summary"><div>${iconSvg('trophy')}<span>100 המובילים</span></div><div>${iconSvg('food')}<span>הארנק שלי: <b>${w.balanceText}</b></span></div><div><span>רמה ${w.level}</span></div></div><div id="leaderRows" class="lux-ranks" role="status">טוען דירוג…</div><p class="lux-disclaimer">דירוג ניסיוני. התוצאות עדיין לא מאומתות במלואן בצד השרת.</p></div>`,'leaderBack',showMenu);
