@@ -1,0 +1,12 @@
+import {readFileSync,writeFileSync} from 'node:fs';
+import {fileURLToPath} from 'node:url';
+import {dirname,resolve} from 'node:path';
+import vm from 'node:vm';
+const here=dirname(fileURLToPath(import.meta.url)),root=resolve(here,'../..');
+const art=Object.fromEntries(['hell','devils','intro'].map(id=>[id,'data:image/webp;base64,'+readFileSync(resolve(here,id+'.webp')).toString('base64')]));
+const code=readFileSync(resolve(here,'mode.js'),'utf8').replace('__MILK_ART__',JSON.stringify(art));new vm.Script(code);
+let html=readFileSync(resolve(root,'index.html'),'utf8');
+html=html.replace(/<!-- BEGIN MILK MODE -->[\s\S]*?<!-- END MILK MODE -->\n?/,'');
+html=html.replace('</body>','<!-- BEGIN MILK MODE -->\n<script>\n'+code+'\n</script>\n<!-- END MILK MODE -->\n</body>');
+for(const m of html.matchAll(/<script[^>]*>([\s\S]*?)<\/script>/g))new vm.Script(m[1]);
+writeFileSync(resolve(root,'index.html'),html);console.log('Milk mode built and JavaScript syntax verified');

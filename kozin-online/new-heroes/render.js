@@ -132,12 +132,12 @@ GameRenderer.prototype.character=function(g,isChaser){
   const sx=x+(origin.x-224)*k,sy=y+(origin.y-335)*k;
   c.save();
   // Birth positions are local to the held prop; smoke trails behind the runner.
-  for(let n=0;n<14;n++){
-   const age=(q.elapsed*1.7+n/14)%1,r=5+age*20;
-   c.save();c.globalAlpha*=.45*(1-age)*(intro?Math.max(0,Math.min(1,(q.elapsed-.8)*6)):1);c.fillStyle=n%2?'#dce7d9':'#c5d6c2';c.beginPath();c.ellipse(sx-age*54+Math.sin(n*2.4+g.time)*8,sy-age*53,r,r*.75,0,0,Math.PI*2);c.fill();c.restore();
+  for(let n=0;n<42;n++){
+   const age=(q.elapsed*1.1+n/42)%1,r=10+age*40;
+   c.save();c.globalAlpha*=.6*(1-age)*(intro?Math.max(0,Math.min(1,(q.elapsed-.8)*6)):1);c.fillStyle=n%3?'#e5eee1':'#b8cdb6';c.beginPath();c.ellipse(sx-age*155+Math.sin(n*2.4+g.time)*20,sy-age*125+Math.sin(n)*12,r,r*.8,0,0,Math.PI*2);c.fill();c.restore();
   }
   const burst=Math.max(0,1-Math.abs(q.elapsed-1.05)/.4);
-  if(burst>0)for(let n=0;n<9;n++){c.save();c.globalAlpha*=burst*.65;c.fillStyle=n%2?'#d7e2d2':'#bfceb9';c.beginPath();c.arc(x+Math.sin(n*2.4)*43,y-22-n*17,24+burst*13,0,Math.PI*2);c.fill();c.restore();}
+  if(burst>0)for(let n=0;n<18;n++){c.save();c.globalAlpha*=burst*.65;c.fillStyle=n%2?'#e5eee1':'#bfceb9';c.beginPath();c.arc(x-25+Math.sin(n*2.4)*70,y-22-n*12,32+burst*22,0,Math.PI*2);c.fill();c.restore();}
   c.restore();return;
  }
  newCharacter.call(this,g,isChaser);

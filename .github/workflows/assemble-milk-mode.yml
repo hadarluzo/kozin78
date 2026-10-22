@@ -1,0 +1,35 @@
+name: Build and verify milk parkour
+on:
+  push:
+    branches: [codex/milk-parkour]
+    paths: [kozin-online/milk-mode/**, kozin-online/new-heroes/powers.js, kozin-online/new-heroes/render.js, .github/workflows/assemble-milk-mode.yml]
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Assemble shared powers and milk mode
+        run: |
+          python kozin-online/new-heroes/build.py
+          node kozin-online/milk-mode/build.mjs
+      - name: Verify parkour, hazards, heroes and online rendering
+        run: |
+          node kozin-online/milk-mode/browser-test.mjs
+          node kozin-online/full-v3/new-heroes-test.mjs
+          node kozin-online/full-v3/browser-game-render-test.mjs
+          node kozin-online/full-v3/browser-new-heroes-test.mjs
+      - name: Commit verified build
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html kozin-online/full-v3/engine.cjs
+          if ! git diff --cached --quiet; then
+            git commit -m 'Build verified milk parkour, dense smoke and 60 second car cooldown'
+            git push origin HEAD:codex/milk-parkour
+          fi

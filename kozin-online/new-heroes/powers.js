@@ -1,6 +1,8 @@
 // Shared by the standalone game and the authoritative multiplayer engine.
 // Histories never enter snapshots or saved accounts.
 (() => {
+ HEROES.fahima.cooldown=60;
+ HEROES.fahima.description=HEROES.fahima.description.replace(/50/g,'60');
  const histories=new WeakMap(), clone=x=>JSON.parse(JSON.stringify(x));
  const key=o=>o.netId??`${o.x}:${o.y??o.height}:${o.seed??o.type}`;
  const history=g=>{let h=histories.get(g);if(!h){h={clock:0,frames:[],foods:new Set(),passed:new Set(),enemies:new Set(),serial:0,enemySerial:0};histories.set(g,h);}return h;};
