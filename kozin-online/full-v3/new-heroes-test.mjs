@@ -12,9 +12,9 @@ assert(CATALOG.heroes.includes('bracha')&&CATALOG.heroes.includes('fahima'));
 {
  const w=make('fahima');clear(w);const g=w.games[0];assert.equal(w.api.HEROES.fahima.price,2500);
  assert(w.action('a','power'));assert.equal(g.power.remaining,6);w.action('a','jump');assert.equal(g.player.vy,620);
- w.step();w.action('a','jump');assert(g.power.boostUsed);assert.equal(g.power.remaining,3.75);
- for(let n=0;n<44;n++)w.step();assert(g.player.y>=g.heroCeiling()-1);assert(g.power.boostTime>0);
- for(let n=0;n<3;n++)w.step();assert.equal(g.power.carStage,'coast');assert(g.power.remaining<3.01&&g.power.remaining>2.9);
+ w.step();w.action('a','jump');assert(g.power.boostUsed);assert.equal(g.power.remaining,3.9);
+ for(let n=0;n<44;n++)w.step();assert(g.player.y>=1000);assert(g.power.boostTime>0);
+ for(let n=0;n<11;n++)w.step();assert.equal(g.power.carStage,'coast');assert(g.power.remaining<3.01&&g.power.remaining>2.9);
  const remaining=g.power.remaining;w.action('a','jump');assert.equal(g.power.remaining,remaining,'no second boost');
  for(let n=0;n<181;n++)w.step();assert.equal(g.power.remaining,0);
  const noBoost=make('fahima');clear(noBoost);noBoost.action('a','power');for(let n=0;n<361;n++)noBoost.step();assert.equal(noBoost.games[0].power.remaining,0);

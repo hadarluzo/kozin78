@@ -23,7 +23,7 @@
  HeroPower.prototype.update=function(g,dt){
   powerUpdate.call(this,g,dt);
   if(this.type==='fahima'&&this.remaining>0&&this.boostTime>0){
-   this.boostTime=Math.max(0,this.boostTime-dt);g.player.vy=1100;g.player.jumps=2;g.player.flip=0;
+   this.boostTime=Math.max(0,this.boostTime-dt);g.player.vy=1550;g.player.jumps=2;g.player.flip=0;
    if(!this.boostTime){this.carStage='coast';g.player.vy=Math.min(g.player.vy,100);}
   }
  };
@@ -31,15 +31,15 @@
  RunnerGame.prototype.jump=function(){
   const q=this.power,p=this.player;
   if(this.state==='playing'&&q.type==='fahima'&&q.remaining>0&&!q.boostUsed&&p.jumps===1){
-   Object.assign(q,{boostUsed:true,boostTime:.75,remaining:3.75,carStage:'boost'});
-   p.jumps=2;p.vy=1100;p.flip=0;this.audio.effect('flip');this.burst(p.x,p.y,'#ffad32',24);return;
+   Object.assign(q,{boostUsed:true,boostTime:.9,remaining:3.9,carStage:'boost'});
+   p.jumps=2;p.vy=1550;p.flip=0;this.audio.effect('flip');this.burst(p.x,p.y,'#ffad32',24);return;
   }
   const before=p.jumps;jump.call(this);
   if(q.type==='bracha'&&q.remaining>0&&p.jumps>before){p.vy=750;p.flip=0;}
   if(q.type==='fahima'&&q.remaining>0)p.flip=0;
  };
  RunnerGame.prototype.heroGravity=function(){return this.power.type==='bracha'&&this.power.remaining>0?.4:this.power.type==='fahima'&&this.power.boostTime>0?0:1;};
- RunnerGame.prototype.heroCeiling=function(){return Math.max(240,Math.min(620,(this.viewHeight||620)-Math.max(140,(this.viewHeight||620)*.22)-190));};
+ RunnerGame.prototype.heroCeiling=function(){if(this.power.type==='fahima')return 1100;return Math.max(240,Math.min(620,(this.viewHeight||620)-Math.max(140,(this.viewHeight||620)*.22)-190));};
  RunnerGame.prototype.rescueCat=function(){
   const q=this.power,h=history(this);
   if(q.type!=='michael'||q.remaining<=0||q.catUsed||h.clock<3)return false;

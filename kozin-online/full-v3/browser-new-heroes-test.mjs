@@ -48,6 +48,16 @@ function check(){
    for(const item of GEAR){const f=wardrobe.getFrame(id,8,{outfit,[item.slot]:item.id}).img;ensure(f?.width>0,'gear '+item.id);result.cosmetics++;}
   }
  }
+ // Every outfit has a real four-pose activation and coherent power silhouette.
+ result.redrawnPowers=0;
+ for(const outfit of newHeroes.outfits){
+  const puff=newHeroes.puffFrames[outfit];ensure(puff.length===4,'four puff poses '+outfit);
+  ensure(new Set(puff.map(f=>f.toDataURL())).size===4,'distinct puff gestures '+outfit);
+  for(const id of ['bracha','fahima'])for(let n=0;n<(id==='bracha'?8:4);n++){
+   const f=newHeroes.powerFrame(id,n,{...(outfit==='base'?{}:{outfit}),head:'kippah',feet:'nb',fringe:'tekhelet'});
+   ensure(f.width===448&&f.height===384,'power frame registered '+id+outfit+n);result.redrawnPowers++;
+  }
+ }
  game.wallet={selected:'michael',food:0,xp:0,flushes:0,earn(){this.food++},gainXP(n){this.xp+=n},record(){},flush(){this.flushes++},save(){}};
  game.difficulty='normal';game.start();game.input={running:true,lifting:false,clear(){}};game.spawn=()=>{};game.obstacles=[];game.foods=[];game.combat.nextWave=1e9;
  for(let n=0;n<400;n++)game.update(1/120);
