@@ -21,8 +21,8 @@ const info=`function showPrivateTestInfo(){
 }
 `;
 replaceOnce('function accountLabel(){',info+'function accountLabel(){');
-replaceOnce('function showAccount(){',"function showAccount(){if(TEST_MODE){showPrivateTestInfo();return;");
-replaceOnce('async function showLeaderboard(){',"async function showLeaderboard(){if(TEST_MODE){showPrivateTestInfo();return;");
+replaceOnce('function showAccount(){',"function showAccount(){if(TEST_MODE){showPrivateTestInfo();return;}");
+replaceOnce('async function showLeaderboard(){',"async function showLeaderboard(){if(TEST_MODE){showPrivateTestInfo();return;}");
 replaceOnce("dom('lobbyOnline').onclick=()=>{location.href=new URL('online.html?enter=1',location.href).href;};","dom('lobbyOnline').onclick=showPrivateTestInfo;");
 replaceOnce('<body>',`<body>
 <div aria-label="גרסת בדיקה" style="position:fixed;z-index:100000;top:5px;left:50%;transform:translateX(-50%);padding:4px 10px;border-radius:12px;background:#183d4ee8;color:#ffe6a6;border:1px solid #d8b86a;font:700 11px Arial,sans-serif;pointer-events:none;white-space:nowrap">בדיקה פרטית · ∞ אוכל · ללא דירוג</div>`);
