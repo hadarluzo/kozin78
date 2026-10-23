@@ -13,6 +13,7 @@
    for(let n=0;n<cols*rows;n++){const c=document.createElement('canvas');c.width=w;c.height=h;c.getContext('2d').drawImage(im,n%cols*w,Math.floor(n/cols)*h,w,h,0,0,w,h);list.push(wardrobe.trim(c));}
   }art.ready=true;
  });}
+ // __MILK_BATTLE__
  const reset=RunnerGame.prototype.reset;
  RunnerGame.prototype.reset=function(){reset.call(this);if(this.mode!=='milk'){this.milk=null;return;}
   const rule=rules[this.difficulty],platforms=[{x:450,width:900,height:95,parkour:true,type:'milkPillar',id:0}];
@@ -27,6 +28,7 @@
   const end=right+rule.gap+260;
   platforms.push({id:n,x:end-120,width:280,height:160,parkour:true,type:'milkPillar',final:true});
   this.milk={intro:0,introDone:false,clock:0,platforms,end,progress:0,boss:false,transform:0,nextAttack:2.4,warning:null,shots:[],volley:[],speech:0,speechTime:0,attackFlash:0,history:[],collected:new Set(),death:'',transition:0};
+  initBattle(this);
   this.player.y=95;this.obstacles=platforms;this.foods=platforms.slice(1,-1).filter((_,i)=>i%2===0).map((o,i)=>({x:o.x,y:o.height+90,type:FOOD[i%FOOD.length],seed:i,taken:false}));
   this.chaser.gap=500;this.chaser.x=-100;this.chaser.energy=100;this.boss.enabled=false;this.combat.nextWave=1e9;
  };
@@ -52,12 +54,13 @@
   if(this.mode!=='milk')return rescue.call(this);
   const m=this.milk,q=this.power;if(q.type!=='michael'||q.remaining<=0||q.catUsed||m.clock<3)return false;
   const f=m.history.find(f=>f.at>=m.clock-3);if(!f)return false;
-  Object.assign(this.player,f.player,{invincible:.6});m.progress=f.progress;m.shots=[];m.warning=null;m.volley=[];m.nextAttack=2;
+  Object.assign(this.player,f.player,{invincible:1.35});m.shots=[];m.minions=[];m.special=null;m.beam=null;m.warning=null;m.volley=[];m.nextAttack=2;
   q.remaining=0;q.catUsed=true;q.rewindFlash=.65;this.emit('notice','מיצי החזיר אותך שלוש שניות אחורה!');return true;
  };
  const finish=RunnerGame.prototype.finish;
  RunnerGame.prototype.finish=function(win){
   if(this.mode!=='milk')return finish.call(this,win);
+  if(this.state!=='playing')return;
   if(!win&&this.rescueCat())return;
   this.state=win?'winning':'lost';this.celebration=0;this.input.clear();this.bubbles=[];this.milk.transition=0;
   this.audio.effect(win?'win':'lose');this.emit(win?'win':'lose');
@@ -71,11 +74,11 @@
   for(const b of g.bubbles)b.life-=dt;g.bubbles=g.bubbles.filter(b=>b.life>0);
  }
  function pressure(g){const t=clamp(g.milk.progress/100,0,1),hardest=g.difficulty==='impossible';return {speed:(hardest?360:300)+t*(hardest?260:200),warning:(hardest?1.4:1.7)-t*(hardest?.75:.75),interval:(hardest?5:6)-t*(hardest?3.3:3.1),count:1+Math.floor(t*(hardest?3:2)+.001)};}
- function fire(g,target){const m=g.milk,sx=g.player.x+430,sy=420+Math.sin(m.clock*1.8)*65,dx=target.x-sx,dy=target.y-sy,dist=Math.hypot(dx,dy),speed=pressure(g).speed;
+ function fire(g,target){const m=g.milk,sx=bossPoint(g).x,sy=bossPoint(g).y,dx=target.x-sx,dy=target.y-sy,dist=Math.hypot(dx,dy),speed=pressure(g).speed;
   m.shots.push({x:sx,y:sy,px:sx,py:sy,vx:dx/dist*speed,vy:dy/dist*speed,r:14,life:4});m.attackFlash=.32;g.audio.effect('milk');
  }
  function bossTick(g,dt){const m=g.milk;
-  if(!m.boss&&['hard','impossible'].includes(g.difficulty)){m.boss=true;m.transform=1.6;m.nextAttack=4;m.speechTime=3;m.speech=0;g.emit('notice','קוזין הפך לשטן! ההתקפות יתגברו לאורך המסלול');g.audio.effect('map');shout(g,0);}
+  if(!m.boss){m.boss=true;m.transform=1.6;m.nextAttack=4;m.speechTime=3;m.speech=0;g.emit('notice','הבס את קוזין! הירי אוטומטי — רוץ והתחמק');g.audio.effect('map');shout(g,0);}
   if(!m.boss)return;
   m.transform=Math.max(0,m.transform-dt);m.attackFlash=Math.max(0,m.attackFlash-dt);m.speechTime=Math.max(0,m.speechTime-dt);
   if(g.power.freezeRemaining>0)return;
@@ -111,15 +114,15 @@
    if(['bracha','fahima'].includes(this.power.type)&&this.power.remaining>0&&p.y>this.heroCeiling()){p.y=this.heroCeiling();p.vy=Math.min(0,p.vy);}
   }
   if(p.jumps===0)p.phase+=(p.x-oldX)/30;
-  this.distance=Math.max(0,p.x-320);m.progress=clamp(100*this.distance/(m.end-320),0,100);this.chaser.energy=100-m.progress;this.chaser.x=p.x-500;this.chaser.y=0;
+  this.distance=Math.max(0,p.x-320);m.progress=100*(1-m.hp/m.maxHp);this.chaser.energy=100-m.progress;this.chaser.x=p.x-500;this.chaser.y=0;
   for(const f of this.foods)if(!f.taken&&Math.abs(f.x-p.x)<45&&Math.abs(f.y-p.y-95)<68){this.collect(f);m.collected.add(f.seed)}
   for(const key of ['kickCD','punchCD','spitCD','spitPose','wipe','look','attackTime'])this.combat[key]=Math.max(0,(this.combat[key]||0)-dt);if(this.combat.attackTime===0)this.combat.attack=null;
   bossTick(this,dt);
+  battleTick(this,dt);if(this.state!=='playing')return;
   for(const s of m.shots){s.px=s.x;s.py=s.y;s.x+=s.vx*dt;s.y+=s.vy*dt;s.life-=dt;
-   if(Math.abs(s.x-p.x)<s.r+19&&s.y>p.y+8&&s.y<p.y+155&&p.invincible<=0){s.life=0;if(this.shield){this.shield=false;p.invincible=.5;}else{m.death='נפגעת ממתקפת החלב';this.finish(false);break;}}
+   if(segmentHit(s.px,s.py,s.x,s.y,p.x,p.y+75,s.r+35)&&p.invincible<=0){s.life=0;hitPlayer(this,'נפגעת ממתקפת החלב');if(this.state!=='playing')break;}
   }m.shots=m.shots.filter(s=>s.life>0&&s.y>0);
   if(p.y<=12){m.death='נפלת לחלב';this.burst(p.x,15,'#fffaf0',35);this.finish(false);}
-  else if(p.x>m.end+170&&p.jumps>0){m.progress=100;this.finish(true);}
   if(this.power.rewindFlash>0)this.power.rewindFlash=Math.max(0,this.power.rewindFlash-dt);
   m.history.push({at:m.clock,player:{...p},progress:m.progress});while(m.history.length>2&&m.history[1].at<m.clock-3.2)m.history.shift();
   tickParticles(this,dt);
@@ -145,7 +148,7 @@
   c.strokeStyle='#cba050';c.lineWidth=12;c.beginPath();c.moveTo(cx-100,r.height*.8);c.lineTo(cx-100,cy);c.arc(cx,cy,100,Math.PI,0);c.lineTo(cx+100,r.height*.8);c.stroke();
   for(let n=-3;n<=3;n++)r.line(cx+n*24,cy-65+Math.abs(n)*8,cx+n*24,r.height*.8,'#e1bd6b',4);
   const saved={x:g.player.x,y:g.player.y,jumps:g.player.jumps};g.player.x=r.camera+r.width*.36;g.player.y=20;g.player.jumps=0;r.character(g,false);Object.assign(g.player,saved);
-  r.text('הגעת לגן עדן',r.width/2,90,40,'#fff9d9',true);r.text('100% · ברחת מהחלב של קוזין',r.width/2,137,21,'#fff9d9',true);c.restore();
+  r.text('הגעת לגן עדן',r.width/2,90,40,'#fff9d9',true);r.text('הבסת את קוזין השטן!',r.width/2,137,21,'#fff9d9',true);c.restore();
  }
  const draw=GameRenderer.prototype.draw;
  GameRenderer.prototype.draw=function(g){if(g.mode!=='milk'||g.state==='menu')return draw.call(this,g);
@@ -158,7 +161,7 @@
   for(let n=0;n<22;n++){const x=(n*97+m.clock*12-this.camera*.1)%this.width,y=(n*53-m.clock*16)%this.height;this.ellipse((x+this.width)%this.width,(y+this.height)%this.height,1.5,3,'#ffac6a88');}
   for(const o of m.platforms)if(o.x+o.width/2>this.camera-20&&o.x-o.width/2<this.camera+this.width+20)pillar(this,o);
   for(const f of g.foods)if(!f.taken&&Math.abs(f.x-this.camera-this.width/2)<this.width/2+40)this.food(f);
-  if(m.boss){const bx=g.player.x+430-this.camera,by=this.ground-(420+Math.sin(m.clock*1.8)*65),sz=250+Math.sin(m.clock*3)*6;c.save();if(m.transform>0){c.globalAlpha=m.transform*.24;this.ellipse(bx,by+60,120+m.transform*40,150,'#ed433c');c.globalAlpha=1;}c.translate(bx,0);c.scale(-1,1);sprite(c,art.devils[m.attackFlash>0?5:4],0,by+150,sz,sz);c.restore();if(m.speechTime>0)this.text(shouts[m.speech],Math.min(this.width-200,bx),Math.max(55,by-105),24,'#fff1c6',true);}
+  if(m.boss){const bx=g.player.x+430-this.camera,by=this.ground-bossPoint(g).y,sz=250+Math.sin(m.clock*3)*6;c.save();if(m.transform>0){c.globalAlpha=m.transform*.24;this.ellipse(bx,by+60,120+m.transform*40,150,'#ed433c');c.globalAlpha=1;}c.translate(bx,0);c.scale(-1,1);sprite(c,art.devils[m.attackFlash>0?5:4],0,by+110,sz,sz);c.restore();if(m.speechTime>0)this.text(shouts[m.speech],Math.min(this.width-200,bx),Math.max(55,by-105),24,'#fff1c6',true);}
   if(m.warning){const x=m.warning.x-this.camera,y=this.ground-m.warning.y;c.save();c.globalAlpha=.65+Math.sin(m.clock*30)*.25;c.strokeStyle='#ffdb91';c.lineWidth=3;c.setLineDash([8,6]);c.beginPath();c.arc(x,y,32,0,Math.PI*2);c.stroke();c.setLineDash([]);this.text('!',x,y,26,'#fff2bb',true);c.restore();}
   for(const s of m.shots){const x=s.x-this.camera,y=this.ground-s.y;this.line(x-s.vx*.05,y+s.vy*.05,x,y,'#e0f0f5aa',s.r*1.6);this.ellipse(x,y,s.r*1.35,s.r,'#fffdf4');this.ellipse(x-3,y-4,5,3,'#ffffff');}
   this.heroEffects(g,true);this.character(g,false);this.heroEffects(g,false);this.combatEffects(g);
@@ -168,7 +171,7 @@
   }
   milkSurface(this,g);
   for(const p of g.particles){c.globalAlpha=Math.min(1,p.life*2);this.ellipse(p.x-this.camera,this.ground-p.y,p.size,p.size,p.color)}c.globalAlpha=1;
-  if(m.introDone&&g.state==='playing'&&m.progress>97)this.text('קפוץ אל הלא נודע!',this.width/2,100,30,'#ffe0a3',true);
+  drawBattle(this,g);
   if(g.state==='lost')this.text(m.death,this.width/2,this.height*.36,38,'#fff3d9',true);
  };
  const menu=showMenu;
@@ -177,20 +180,21 @@
   dom('lobbyStart').onclick=()=>{game.mode='regular';startGame()};
  };
  function showMilk(){game.state='menu';controls.clear();
-  setDialog(`<div class="kicker">KOZIN · MILK PARKOUR</div><h1>הרצפה היא החלב של קוזין</h1><p>קפוץ בין עמודי הגהנום. נפילה לחלב מסיימת את הריצה.<br>בקשה ובבלתי אפשרי, קוזין־שטן מגיע בתחילת המסלול וההתקפות מתחזקות בהדרגה.</p><div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">${Object.entries(DIFFICULTIES).map(([id,d])=>`<button class="difficulty-choice ${game.difficulty===id?'selected':''}" data-milk-difficulty="${id}">${d.name}</button>`).join('')}</div><p>ריצה וקפיצה כמו במשחק הרגיל · לחיצה שנייה באוויר לקפיצה כפולה</p><p id="milkLoad" role="status">טוען איורים…</p><button class="primary" id="milkStart" disabled>לגהנום ובחזרה</button><button class="secondary" id="milkBack">חזרה ללובי</button>`,'milkBack',showMenu);
+  setDialog(`<div class="kicker">KOZIN · MILK PARKOUR</div><h1>הרצפה היא החלב של קוזין</h1><p>קפוץ בין עמודי הגהנום. נפילה לחלב מסיימת את הריצה.<br>הבס את קוזין השטן כדי להגיע לגן עדן! מד החיים שלו למעלה. מיניונים ומתקפות מיוחדות מתחזקים ככל שהוא נפגע.</p><div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">${Object.entries(DIFFICULTIES).map(([id,d])=>`<button class="difficulty-choice ${game.difficulty===id?'selected':''}" data-milk-difficulty="${id}">${d.name}</button>`).join('')}</div><p>ירי אנרגיה אוטומטי לכל דמות · כפתור ירי או F להפעלה וכיבוי<br>כדורים כחולים משמידים שדים וקליעי ענק · קפיצה כפולה להתחמקות</p><p id="milkLoad" role="status">טוען איורים…</p><button class="primary" id="milkStart" disabled>לגהנום ובחזרה</button><button class="secondary" id="milkBack">חזרה ללובי</button>`,'milkBack',showMenu);
   for(const b of document.querySelectorAll('[data-milk-difficulty]'))b.onclick=()=>{game.difficulty=b.dataset.milkDifficulty;showMilk()};
   loadArt().then(()=>{if(dom('milkStart')){dom('milkStart').disabled=false;dom('milkLoad').textContent='מוכן · '+DIFFICULTIES[game.difficulty].name;dom('milkStart').onclick=()=>{game.mode='milk';startGame();noticeUntil=0;dom('notice').classList.remove('visible')}}}).catch(e=>{if(dom('milkLoad'))dom('milkLoad').textContent=e.message;loading=null});
  }
  const hud=refreshHud;let milkHud=false;
- refreshHud=function(){const active=game.mode==='milk'&&!!game.milk;if(active!==milkHud){milkHud=active;document.querySelector('.meter-heading strong').textContent=active?'הדרך לגן עדן':'שריפת קלוריות';dom('burnBar').parentElement.setAttribute('aria-label',active?'התקדמות במסלול החלב':'התקדמות שריפת הקלוריות');renderer.lastPreview=-1;
+ refreshHud=function(){const active=game.mode==='milk'&&!!game.milk;document.body.classList.toggle('milk-battle',active&&game.state!=='menu');if(active!==milkHud){milkHud=active;document.querySelector('.meter-heading strong').textContent=active?'הבסת השטן':'שריפת קלוריות';dom('burnBar').parentElement.setAttribute('aria-label',active?'התקדמות בהבסת השטן':'התקדמות שריפת הקלוריות');renderer.lastPreview=-1;
    if(active){const c=dom('mapPreview').getContext('2d'),w=c.canvas.width,h=c.canvas.height;c.fillStyle='#a3d8eb';c.fillRect(0,0,w,h);c.fillStyle='#fff8dc';for(let n=0;n<8;n++){c.beginPath();c.ellipse(n*40,h-10,35,20,0,0,Math.PI*2);c.fill()}c.strokeStyle='#c79b44';c.lineWidth=5;c.beginPath();c.moveTo(w/2-28,h-20);c.lineTo(w/2-28,45);c.arc(w/2,45,28,Math.PI,0);c.lineTo(w/2+28,h-20);c.stroke();}
-  }if(!active)return hud();const m=game.milk,q=game.power,h=HEROES[game.wallet.selected];
+  }if(!active){if(punchButton.dataset.milk){punchButton.innerHTML=oldPunchLabel;punchButton.setAttribute('aria-label','אגרוף למטוס');delete punchButton.dataset.milk;}return hud();}const m=game.milk,q=game.power,h=HEROES[game.wallet.selected];
+  punchButton.dataset.milk='1';punchButton.innerHTML='ירי<small>'+(m.autoFire?'אוטומטי פועל':'כבוי')+'</small>';punchButton.setAttribute('aria-label','הפעלה או כיבוי של ירי אוטומטי');punchButton.setAttribute('aria-pressed',String(m.autoFire));
   dom('powerLabel').textContent=h.power;dom('spitTimer').textContent=q.remaining>0?Math.ceil(q.remaining)+' שנ׳':q.cooldown>0?Math.ceil(q.cooldown)+' שנ׳':'מוכן';dom('spit').classList.toggle('active-power',q.remaining>0);dom('spit').classList.toggle('cooling',q.cooldown>0&&q.remaining===0);dom('spit').setAttribute('aria-disabled',String(q.cooldown>0||!m.introDone));
-  dom('burn').textContent=Math.floor(m.progress)+'%';dom('burnBar').style.width=m.progress+'%';dom('burnBar').parentElement.setAttribute('aria-valuenow',String(Math.floor(m.progress)));dom('energy').textContent=m.boss?'שטן':'חלב';
-  dom('distance').textContent=Math.round(game.distance)+' מ׳';dom('foodCount').textContent='אוכל '+game.wallet.balanceText;dom('clock').textContent=formatTime(game.time);dom('jumpHint').textContent=game.profile.name+' · נפילה לחלב = פסילה';dom('location').textContent='הרצפה היא החלב של קוזין';dom('nextLabel').textContent='היעד';dom('nextName').textContent='גן עדן';dom('bossStatus').textContent=m.boss?'קוזין־שטן · התחמק מהמתקפות':'';dom('bossStatus').classList.toggle('hidden',!m.boss||game.state!=='playing');
+  dom('burn').textContent=Math.floor(m.progress)+'%';dom('burnBar').style.width=m.progress+'%';dom('burnBar').parentElement.setAttribute('aria-valuenow',String(Math.floor(m.progress)));dom('energy').textContent=Math.ceil(m.hp)+' / '+m.maxHp;
+  dom('distance').textContent=Math.round(game.distance)+' מ׳';dom('foodCount').textContent='אוכל '+game.wallet.balanceText;dom('clock').textContent=formatTime(game.time);dom('jumpHint').textContent=game.profile.name+' · ירי אוטומטי '+(m.autoFire?'פועל':'כבוי');dom('location').textContent='הרצפה היא החלב של קוזין';dom('nextLabel').textContent='היעד';dom('nextName').textContent='גן עדן';dom('bossStatus').textContent=m.boss?'שלב '+m.phase+' · '+m.hearts+' חיים':'';dom('bossStatus').classList.toggle('hidden',!m.boss||game.state!=='playing');
  };
  const oldResults=results;
- results=function(){if(game.mode!=='milk')return oldResults();const win=game.state==='won';setDialog(`<div class="kicker">MILK PARKOUR · ${game.profile.name}</div><h1>${win?'ניצחת — הגעת לגן עדן!':game.milk.death}</h1><p>${win?'כל העמודים מאחוריך. קוזין נשאר בגהנום.':'קפוץ מהקצה ושמור את הקפיצה השנייה לתיקון באוויר.'}</p><div class="result-grid"><div class="result-stat"><b>${Math.floor(game.milk.progress)}%</b>מהמסלול</div><div class="result-stat"><b>${formatTime(game.time)}</b>זמן</div><div class="result-stat"><b>${game.count}</b>מאכלים</div></div><button class="primary" id="milkAgain">עוד ניסיון</button><button class="secondary" id="milkMenu">ללובי</button>`,'milkAgain',startGame);dom('milkMenu').onclick=returnToLobby;};
+ results=function(){if(game.mode!=='milk')return oldResults();const win=game.state==='won';setDialog(`<div class="kicker">MILK PARKOUR · ${game.profile.name}</div><h1>${win?'ניצחת — הגעת לגן עדן!':game.milk.death}</h1><p>${win?'קוזין השטן הובס. השער לגן עדן נפתח.':'הפעל ירי, קפוץ בין העמודים והתחמק מסימני האזהרה.'}</p><div class="result-grid"><div class="result-stat"><b>${Math.floor(game.milk.progress)}%</b>מהשטן הובס</div><div class="result-stat"><b>${formatTime(game.time)}</b>זמן</div><div class="result-stat"><b>${game.count}</b>מאכלים</div></div><button class="primary" id="milkAgain">עוד ניסיון</button><button class="secondary" id="milkMenu">ללובי</button>`,'milkAgain',startGame);dom('milkMenu').onclick=returnToLobby;};
  const lobby=returnToLobby;
  returnToLobby=function(){if(game.mode!=='milk')return lobby();game.wallet.flush();game.mode='regular';game.reset();game.state='menu';controls.clear();renderer.reset(game);showMenu();refreshHud()};
  globalThis.MilkMode={rules,art,loadArt,show:showMilk};

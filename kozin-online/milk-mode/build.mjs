@@ -4,7 +4,7 @@ import {dirname,resolve} from 'node:path';
 import vm from 'node:vm';
 const here=dirname(fileURLToPath(import.meta.url)),root=resolve(here,'../..');
 const art=Object.fromEntries(['hell','devils','intro'].map(id=>[id,'data:image/webp;base64,'+readFileSync(resolve(here,id+'.webp')).toString('base64')]));
-const code=readFileSync(resolve(here,'mode.js'),'utf8').replace('__MILK_ART__',JSON.stringify(art));new vm.Script(code);
+const code=readFileSync(resolve(here,'mode.js'),'utf8').replace('__MILK_ART__',JSON.stringify(art)).replace('// __MILK_BATTLE__',readFileSync(resolve(here,'battle.js'),'utf8'));new vm.Script(code);
 let html=readFileSync(resolve(root,'index.html'),'utf8');
 html=html.replace(/<!-- BEGIN MILK MODE -->[\s\S]*?<!-- END MILK MODE -->\n?/,'');
 html=html.replace('</body>','<!-- BEGIN MILK MODE -->\n<script>\n'+code+'\n</script>\n<!-- END MILK MODE -->\n</body>');
