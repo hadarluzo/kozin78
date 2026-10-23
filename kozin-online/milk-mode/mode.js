@@ -70,20 +70,21 @@
   for(const p of g.popups){p.life-=dt;p.y+=30*dt}g.popups=g.popups.filter(p=>p.life>0);
   for(const b of g.bubbles)b.life-=dt;g.bubbles=g.bubbles.filter(b=>b.life>0);
  }
- function fire(g,target){const m=g.milk,sx=g.player.x+430,sy=420+Math.sin(m.clock*1.8)*65,dx=target.x-sx,dy=target.y-sy,dist=Math.hypot(dx,dy),speed=g.difficulty==='impossible'?620:500;
+ function pressure(g){const t=clamp(g.milk.progress/100,0,1),hardest=g.difficulty==='impossible';return {speed:(hardest?360:300)+t*(hardest?260:200),warning:(hardest?1.4:1.7)-t*(hardest?.75:.75),interval:(hardest?5:6)-t*(hardest?3.3:3.1),count:1+Math.floor(t*(hardest?3:2)+.001)};}
+ function fire(g,target){const m=g.milk,sx=g.player.x+430,sy=420+Math.sin(m.clock*1.8)*65,dx=target.x-sx,dy=target.y-sy,dist=Math.hypot(dx,dy),speed=pressure(g).speed;
   m.shots.push({x:sx,y:sy,px:sx,py:sy,vx:dx/dist*speed,vy:dy/dist*speed,r:14,life:4});m.attackFlash=.32;g.audio.effect('milk');
  }
  function bossTick(g,dt){const m=g.milk;
-  if(!m.boss&&m.progress>=50&&['hard','impossible'].includes(g.difficulty)){m.boss=true;m.transform=1.6;m.nextAttack=2.2;m.speechTime=3;m.speech=0;g.emit('notice','קוזין הפך לשטן! התחמק מהחלב');g.audio.effect('map');shout(g,0);}
+  if(!m.boss&&['hard','impossible'].includes(g.difficulty)){m.boss=true;m.transform=1.6;m.nextAttack=4;m.speechTime=3;m.speech=0;g.emit('notice','קוזין הפך לשטן! ההתקפות יתגברו לאורך המסלול');g.audio.effect('map');shout(g,0);}
   if(!m.boss)return;
   m.transform=Math.max(0,m.transform-dt);m.attackFlash=Math.max(0,m.attackFlash-dt);m.speechTime=Math.max(0,m.speechTime-dt);
   if(g.power.freezeRemaining>0)return;
   m.nextAttack-=dt;
   if(m.nextAttack<=0&&!m.warning){
-   m.warning={time:g.difficulty==='impossible'?.65:.95,x:g.player.x+(g.input.running?g.profile.speed*.45:0),y:g.player.y+65};
+   m.warning={time:pressure(g).warning,x:g.player.x+(g.input.running?g.profile.speed*.45:0),y:g.player.y+65};
    m.speech=(m.speech+1)%3;m.speechTime=2.5;shout(g,m.speech);
   }
-  if(m.warning){m.warning.time-=dt;if(m.warning.time<=0){const target=m.warning;fire(g,target);const count=g.difficulty==='impossible'?(m.progress>75?4:3):(m.progress>75?3:2);for(let n=1;n<count;n++)m.volley.push({time:n*.3,target:{x:target.x+n*45,y:target.y+(n%2?60:-30)}});m.warning=null;m.nextAttack=(g.difficulty==='impossible'?2.2:3.4)-(m.progress-50)/100;}}
+  if(m.warning){m.warning.time-=dt;if(m.warning.time<=0){const target=m.warning;fire(g,target);const attack=pressure(g);for(let n=1;n<attack.count;n++)m.volley.push({time:n*.3,target:{x:target.x+n*45,y:target.y+(n%2?60:-30)}});m.warning=null;m.nextAttack=attack.interval;}}
   for(const shot of m.volley)shot.time-=dt;const due=m.volley.filter(s=>s.time<=0);m.volley=m.volley.filter(s=>s.time>0);for(const s of due)fire(g,s.target);
  }
  const update=RunnerGame.prototype.update;
@@ -176,7 +177,7 @@
   dom('lobbyStart').onclick=()=>{game.mode='regular';startGame()};
  };
  function showMilk(){game.state='menu';controls.clear();
-  setDialog(`<div class="kicker">KOZIN · MILK PARKOUR</div><h1>הרצפה היא החלב של קוזין</h1><p>קפוץ בין עמודי הגהנום. נפילה לחלב מסיימת את הריצה.<br>בקשה ובבלתי אפשרי, קוזין־שטן תוקף החל מ־50%.</p><div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">${Object.entries(DIFFICULTIES).map(([id,d])=>`<button class="difficulty-choice ${game.difficulty===id?'selected':''}" data-milk-difficulty="${id}">${d.name}</button>`).join('')}</div><p>ריצה וקפיצה כמו במשחק הרגיל · לחיצה שנייה באוויר לקפיצה כפולה</p><p id="milkLoad" role="status">טוען איורים…</p><button class="primary" id="milkStart" disabled>לגהנום ובחזרה</button><button class="secondary" id="milkBack">חזרה ללובי</button>`,'milkBack',showMenu);
+  setDialog(`<div class="kicker">KOZIN · MILK PARKOUR</div><h1>הרצפה היא החלב של קוזין</h1><p>קפוץ בין עמודי הגהנום. נפילה לחלב מסיימת את הריצה.<br>בקשה ובבלתי אפשרי, קוזין־שטן מגיע בתחילת המסלול וההתקפות מתחזקות בהדרגה.</p><div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">${Object.entries(DIFFICULTIES).map(([id,d])=>`<button class="difficulty-choice ${game.difficulty===id?'selected':''}" data-milk-difficulty="${id}">${d.name}</button>`).join('')}</div><p>ריצה וקפיצה כמו במשחק הרגיל · לחיצה שנייה באוויר לקפיצה כפולה</p><p id="milkLoad" role="status">טוען איורים…</p><button class="primary" id="milkStart" disabled>לגהנום ובחזרה</button><button class="secondary" id="milkBack">חזרה ללובי</button>`,'milkBack',showMenu);
   for(const b of document.querySelectorAll('[data-milk-difficulty]'))b.onclick=()=>{game.difficulty=b.dataset.milkDifficulty;showMilk()};
   loadArt().then(()=>{if(dom('milkStart')){dom('milkStart').disabled=false;dom('milkLoad').textContent='מוכן · '+DIFFICULTIES[game.difficulty].name;dom('milkStart').onclick=()=>{game.mode='milk';startGame();noticeUntil=0;dom('notice').classList.remove('visible')}}}).catch(e=>{if(dom('milkLoad'))dom('milkLoad').textContent=e.message;loading=null});
  }
